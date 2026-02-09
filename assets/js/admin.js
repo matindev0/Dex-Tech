@@ -56,12 +56,12 @@ class AdminPanel {
     });
   }
 
-  authenticate() {
+  async authenticate() {
     this.isAuthenticated = true;
     this.pinModal.style.display = 'none';
     this.adminContainer.style.display = 'block';
-    this.loadPostsList();
-    this.loadSettings();
+    await this.loadPostsList();
+    await this.loadSettings();
   }
 
   logout() {
@@ -184,7 +184,7 @@ class AdminPanel {
     });
   }
 
-  openPostForm(postId = null) {
+  async openPostForm(postId = null) {
     const modal = document.getElementById('postFormModal');
     const form = document.getElementById('postForm');
     const title = document.getElementById('formTitle');
@@ -197,7 +197,7 @@ class AdminPanel {
 
     if (postId) {
       this.currentEditId = postId;
-      const post = DB.getPostById(postId);
+      const post = await DB.getPostById(postId);
       if (post) {
         title.textContent = 'Edit Post';
         document.getElementById('postTitle').value = post.title;
@@ -235,7 +235,7 @@ class AdminPanel {
     this.currentEditId = null;
   }
 
-  savePost() {
+  async savePost() {
     const titleInput = document.getElementById('postTitle').value.trim();
     const descriptionInput = document.getElementById('postDescription').value.trim();
     const categoryInput = document.getElementById('postCategory').value.trim();
@@ -266,20 +266,20 @@ class AdminPanel {
 
     // Handle thumbnail upload
     if (thumbnailFile.files.length > 0) {
-      const file = thumbnailFile.files[0];
-      DB.fileToBase64(file).then((base64) => {
-        this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, base64);
-      }).catch(() => {
+      try {
+        const file = thumbnailFile.files[0];
+        const base64 = await DB.fileToBase64(file);
+        await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, base64);
+      } catch (error) {
         this.showToast('Error uploading thumbnail. Please try again.', 'error');
-      });
+      }
     } else if (this.currentEditId) {
       // Editing without changing thumbnail - use existing thumbnail
-      const existingPost = DB.getPostById(this.currentEditId);
-      this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, existingPost.thumbnail);
+      const existingPost = await DB.getPostById(this.currentEditId);
+      await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, existingPost.thumbnail);
     }
   }
-
-  completeSavePost(title, description, category, videoId, thumbnail) {
+async completeSavePost(title, description, category, videoId, thumbnail) {
     const post = {
       title: title,
       description: description,
@@ -288,20 +288,21 @@ class AdminPanel {
       thumbnail: thumbnail
     };
 
-    if (this.currentEditId) {
-      DB.updatePost(this.currentEditId, post);
-      this.showToast('Post updated successfully!', 'success');
-    } else {
-      DB.addPost(post);
-      this.showToast('Post added successfully!', 'success');
-    }
+    try {
+      if (this.currentEditId) {
+        await DB.updatePost(this.currentEditId, post);
+        this.showToast('Post updated successfully!', 'success');
+      } else {
+        await DB.addPost(post);
+        this.showToast('Post added successfully!', 'success');
+      }
 
-    this.closePostForm();
-    this.loadPostsList();
-  }
-
-  loadPostsList() {
-    const posts = DB.getPosts();
+      this.closePostForm();
+      await this.loadPostsList();
+    } catch (error) {
+      this.showToast('Error saving post to database. Please try again.', 'error');
+  async loadPostsList() {
+    const posts = await DB.getPosts();
     const container = document.getElementById('postsListContainer');
 
     if (posts.length === 0) {
@@ -315,6 +316,11 @@ class AdminPanel {
     }
 
     container.innerHTML = posts.map(post => this.createPostListItem(post)).join('');
+
+    // Add event listeners to action buttons
+    document.querySelectorAll('.admin__post-edit').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        awaittainer.innerHTML = posts.map(post => this.createPostListItem(post)).join('');
 
     // Add event listeners to action buttons
     document.querySelectorAll('.admin__post-edit').forEach(btn => {
@@ -353,10 +359,10 @@ class AdminPanel {
           <small class="admin__post-date">Created: ${formatDate(post.createdAt)}</small>
         </div>
         <div class="admin__post-actions">
-          <button class="admin__post-edit" data-id="${post.id}" title="Edit">
+          <button class="admin__post-edit" data-id="${post._id || post.id}" title="Edit">
             <i class='bx bx-edit'></i>
           </button>
-          <button class="admin__post-delete" data-id="${post.id}" title="Delete">
+          <button class="admin__post-delete" data-id="${post._id || post.id}" title="Delete">
             <i class='bx bx-trash'></i>
           </button>
         </div>
@@ -370,25 +376,39 @@ class AdminPanel {
       this.deletePost();
     };
   }
-
-  closeDeleteModal() {
-    document.getElementById('deleteConfirmModal').style.display = 'none';
-  }
-
-  deletePost() {
+async deletePost() {
     if (this.currentEditId) {
-      DB.deletePost(this.currentEditId);
-      this.showToast('Post deleted successfully!', 'success');
-      this.closeDeleteModal();
-      this.loadPostsList();
-      this.currentEditId = null;
+      try {
+        await DB.deletePost(this.currentEditId);
+        this.showToast('Post deleted successfully!', 'success');
+        this.closeDeleteModal();
+        await this.loadPostsList();
+        this.currentEditId = null;
+      } catch (error) {
+        this.showToast('Error deleting post. Please try again.', 'error');
+  async loadSettings() {
+    try {
+      const settings = await DB.getSettings();
+      document.getElementById('adsenseCode').value = settings?.adsenseCode || '';
+      document.getElementById('analyticsCode').value = settings?.analyticsCode || '';
+    } catch (error) {
+      console.error('Error loading settings:', error);
     }
   }
 
-  loadSettings() {
-    const settings = DB.getSettings();
-    document.getElementById('adsenseCode').value = settings.adsenseCode || '';
-    document.getElementById('analyticsCode').value = settings.analyticsCode || '';
+  async saveSettings() {
+    try {
+      const settings = {
+        adsenseCode: document.getElementById('adsenseCode').value,
+        analyticsCode: document.getElementById('analyticsCode').value
+      };
+
+      await DB.updateSettings(settings);
+      this.showToast('Settings saved successfully!', 'success');
+    } catch (error) {
+      this.showToast('Error saving settings. Please try again.', 'error');
+      console.error('Save settings error:', error);
+    }analyticsCode || '';
   }
 
   saveSettings() {

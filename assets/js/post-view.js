@@ -84,28 +84,31 @@ class PostView {
     document.title = `${post.title} - Matin`;
   }
 
-  loadRelatedPosts(currentPost) {
-    const allPosts = DB.getPosts();
-    const relatedPosts = allPosts
-      .filter(post => 
-        post.id !== currentPost.id && 
-        post.category === currentPost.category
-      )
-      .slice(0, 3);
+  async loadRelatedPosts(currentPost) {
+    try {
+      const allPosts = await DB.getPosts();
+      const relatedPosts = allPosts
+        .filter(post => 
+          (post._id || post.id) !== (currentPost._id || currentPost.id) && 
+          post.category === currentPost.category
+        )
+        .slice(0, 3);
 
-    const container = document.getElementById('relatedPostsContainer');
+      const container = document.getElementById('relatedPostsContainer');
 
-    if (relatedPosts.length === 0) {
-      document.querySelector('.post-view__related').style.display = 'none';
-      return;
+      if (relatedPosts.length === 0) {
+        document.querySelector('.post-view__related').style.display = 'none';
+        return;
     }
 
     container.innerHTML = relatedPosts.map(post => this.createRelatedPostCard(post)).join('');
+    } catch (error) {
+      console.error('Error loading related posts:', error);
+    }
   }
-
   createRelatedPostCard(post) {
     return `
-      <a href="post-view.html?id=${post.id}" class="post-view__related-card">
+      <a href="post-view.html?id=${post._id || post.id}" class="post-view__related-card">
         <div class="post-view__related-image" ${post.thumbnail ? `style="background-image: url('${post.thumbnail}')"` : ''}></div>
         <div class="post-view__related-content">
           <h3>${post.title}</h3>

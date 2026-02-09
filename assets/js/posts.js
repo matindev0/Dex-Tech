@@ -17,9 +17,13 @@ class PostsPage {
     this.loadAdSense();
   }
 
-  loadPosts() {
-    this.currentPosts = DB.getPosts();
-    this.render();
+  async loadPosts() {
+    try {
+      this.currentPosts = await DB.getPosts();
+      this.render();
+    } catch (error) {
+      console.error('Error loading posts:', error);
+    }
   }
 
   setupEventListeners() {
@@ -31,19 +35,19 @@ class PostsPage {
     this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
   }
 
-  handleSearch() {
-    this.filterPosts();
+  async handleSearch() {
+    await this.filterPosts();
   }
 
-  handleFilter() {
-    this.filterPosts();
+  async handleFilter() {
+    await this.filterPosts();
   }
 
-  filterPosts() {
+  async filterPosts() {
     const searchQuery = this.searchInput.value.toLowerCase();
     const categoryQuery = this.categoryFilter.value.toLowerCase();
 
-    let filtered = DB.getPosts();
+    let filtered = await DB.getPosts();
 
     if (searchQuery) {
       filtered = filtered.filter(post =>
@@ -63,10 +67,10 @@ class PostsPage {
     this.render();
   }
 
-  clearFilter() {
+  async clearFilter() {
     this.searchInput.value = '';
     this.categoryFilter.value = '';
-    this.currentPosts = DB.getPosts();
+    this.currentPosts = await DB.getPosts();
     this.render();
     this.updateClearButton();
   }
@@ -105,7 +109,7 @@ class PostsPage {
       `style="background-image: url('${post.thumbnail}'); background-size: cover; background-position: center;"` : '';
 
     return `
-      <article class="posts__card" onclick="window.location.href='post-view.html?id=${post.id}'">
+      <article class="posts__card" onclick="window.location.href='post-view.html?id=${post._id || post.id}'">
         <div class="posts__card-image" ${thumbnail}>
           <span class="posts__card-category">${post.category}</span>
         </div>
@@ -123,11 +127,17 @@ class PostsPage {
     `;
   }
 
-  loadAdSense() {
-    const settings = DB.getSettings();
-    if (settings.adsenseCode) {
-      const script = document.getElementById('adsenseScript');
-      script.textContent = settings.adsenseCode;
+  async loadAdSense() {
+    try {
+      const settings = await DB.getSettings();
+      if (settings && settings.adsenseCode) {
+        const script = document.getElementById('adsenseScript');
+        if (script) {
+          script.textContent = settings.adsenseCode;
+        }
+      }
+    } catch (error) {
+      console.error('Error loading AdSense:', error);
     }
   }
 }
