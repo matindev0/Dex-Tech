@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2254603070091047"
+     crossorigin="anonymous"></script>
+  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link href='https://cdn.jsdelivr.net/npm/boxicons@2.0.5/css/boxicons.min.css' rel='stylesheet'>
+  <link rel="shortcut icon" type="image/png" href="./assets/images/photo1.png" />
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+  <meta name="description" content="Mr.BAD, Matin, websites, Web Designer, Shopping Website!" />
+  <meta name="author" content="Matin" />
+  <meta property="og:image" content="./assets/images/photo1.png" />
+  <meta property="og:url" content="https://infinitybot.tk" />
+  <meta name="theme-color" content="#303135" />
+  <title>Posts - Matin</title>
+  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/posts.css">
+</head>
+
+<body>
+  
+  <!--===== HEADER =====-->
+  <header class="l-header">
+    <nav class="nav bd-grid">
+      <div>
+        <a href="index.html" class="nav__logo">Matin</a>
+      </div>
+      <div class="nav__menu" id="nav-menu">
+        <ul class="nav__list">
+          <li class="nav__item"><a href="index.html#home" class="nav__link">Home</a></li>
+          <li class="nav__item"><a href="index.html#about" class="nav__link">About</a></li>
+          <li class="nav__item"><a href="post.html" class="nav__link active">Posts</a></li>
+          <li class="nav__item"><a href="index.html#work" class="nav__link">Works</a></li>
+          <li class="nav__item"><a href="index.html#contact" class="nav__link">Contact</a></li>
+        </ul>
+      </div>
+      <div class="nav__toggle" id="nav-toggle">
+        <i class='bx bx-menu'></i>
+      </div>
+    </nav>
+  </header>
+
+  <main class="l-main">
+    <!--===== POSTS SECTION =====-->
+    <section class="posts section bd-grid" id="posts">
+      <h2 class="section-title">Posts</h2>
+      
+      <!-- Search Bar -->
+      <div class="posts__search">
+        <input 
+          type="text" 
+          id="searchInput" 
+          class="posts__search-input" 
+          placeholder="Search posts by title, description, or category..."
+        >
+        <i class='bx bx-search posts__search-icon'></i>
+      </div>
+
+      <!-- Filter by Category -->
+      <div class="posts__filter">
+        <input 
+          type="text" 
+          id="categoryFilter" 
+          class="posts__category-input" 
+          placeholder="Filter by category or type to search..."
+        >
+        <button id="clearFilterBtn" class="posts__clear-filter" style="display: none;">
+          <i class='bx bx-x'></i> Clear
+        </button>
+      </div>
+
+      <!-- Posts Container -->
+      <div id="postsContainer" class="posts__container">
+        <!-- Posts will be loaded here -->
+      </div>
+
+      <!-- No Posts Message -->
+      <div id="noPosts" class="posts__empty" style="display: none;">
+        <i class='bx bx-folder-open'></i>
+        <p>No posts found. Check back later!</p>
+      </div>
+    </section>
+  </main>
+
+  <!--===== FOOTER =====-->
+  <footer class="footer">
+    <p class="footer__copy">&#169; 2024 Matin. All rights reserved.</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="assets/js/database.js"></script>
+  <script src="assets/js/posts.js"></script>
+  <script src="https://unpkg.com/scrollreveal"></script>
+  <script src="assets/js/main.js"></script>
+
+  <!-- AdSense Script (loaded dynamically) -->
+  <script id="adsenseScript"></script>
+</body>
+
+</html>

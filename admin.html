@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link href='https://cdn.jsdelivr.net/npm/boxicons@2.0.5/css/boxicons.min.css' rel='stylesheet'>
+  <link rel="shortcut icon" type="image/png" href="./assets/images/photo1.png" />
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+  <meta name="theme-color" content="#303135" />
+  <title>Admin Panel - Matin</title>
+  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/admin.css">
+</head>
+
+<body>
+  
+  <!-- PIN Authentication Modal -->
+  <div id="pinModal" class="pin-modal">
+    <div class="pin-modal__content">
+      <h2 class="pin-modal__title">Admin Panel</h2>
+      <p class="pin-modal__subtitle">Enter your PIN to continue</p>
+      <form id="pinForm" class="pin-modal__form">
+        <input 
+          type="password" 
+          id="pinInput" 
+          class="pin-modal__input" 
+          placeholder="Enter PIN" 
+          maxlength="6"
+          required
+        >
+        <button type="submit" class="pin-modal__button">Enter</button>
+      </form>
+      <p id="pinError" class="pin-modal__error" style="display: none;"></p>
+    </div>
+  </div>
+
+  <!-- Admin Panel Container -->
+  <div id="adminContainer" style="display: none;">
+    <!--===== HEADER =====-->
+    <header class="l-header">
+      <nav class="nav bd-grid">
+        <div>
+          <a href="index.html" class="nav__logo">Matin - Admin</a>
+        </div>
+        <div class="nav__menu" id="nav-menu">
+          <ul class="nav__list">
+            <li class="nav__item"><a href="#" id="logoutBtn" class="nav__link">Logout</a></li>
+          </ul>
+        </div>
+      </nav>
+    </header>
+
+    <main class="l-main">
+      <section class="admin section">
+        <div class="admin__container bd-grid">
+          
+          <!-- Sidebar Navigation -->
+          <aside class="admin__sidebar">
+            <nav class="admin__nav">
+              <button class="admin__nav-item active" data-tab="posts">
+                <i class='bx bx-file'></i>
+                <span>Manage Posts</span>
+              </button>
+              <button class="admin__nav-item" data-tab="settings">
+                <i class='bx bx-cog'></i>
+                <span>Settings</span>
+              </button>
+            </nav>
+          </aside>
+
+          <!-- Main Content -->
+          <div class="admin__content">
+            
+            <!-- POSTS TAB -->
+            <div id="postsTab" class="admin__tab active">
+              <div class="admin__header">
+                <h2 class="admin__title">Manage Posts</h2>
+                <button id="addPostBtn" class="admin__add-btn">
+                  <i class='bx bx-plus'></i>
+                  Add New Post
+                </button>
+              </div>
+
+              <!-- Posts List -->
+              <div id="postsListContainer" class="admin__list"></div>
+            </div>
+
+            <!-- SETTINGS TAB -->
+            <div id="settingsTab" class="admin__tab">
+              <h2 class="admin__title">Settings</h2>
+              
+              <div class="admin__settings">
+                <!-- Google AdSense -->
+                <div class="admin__setting-group">
+                  <label class="admin__setting-label">Google AdSense Code</label>
+                  <textarea 
+                    id="adsenseCode" 
+                    class="admin__setting-textarea" 
+                    placeholder="Paste your Google AdSense script code here..."
+                    rows="6"
+                  ></textarea>
+                  <small class="admin__setting-help">Include the full script tag from Google AdSense</small>
+                </div>
+
+                <!-- Google Analytics -->
+                <div class="admin__setting-group">
+                  <label class="admin__setting-label">Google Analytics Code</label>
+                  <input 
+                    type="text" 
+                    id="analyticsCode" 
+                    class="admin__setting-input" 
+                    placeholder="e.g., G-XXXXXXXXXX"
+                  >
+                  <small class="admin__setting-help">Enter your Google Analytics Measurement ID</small>
+                </div>
+
+                <button id="saveSettingsBtn" class="admin__save-btn">
+                  <i class='bx bx-save'></i>
+                  Save Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!--===== FOOTER =====-->
+    <footer class="footer">
+      <p class="footer__copy">&#169; 2024 Matin Admin Panel. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Post Form Modal -->
+  <div id="postFormModal" class="modal" style="display: none;">
+    <div class="modal__overlay" id="modalOverlay"></div>
+    <div class="modal__content">
+      <div class="modal__header">
+        <h2 id="formTitle" class="modal__title">Add New Post</h2>
+        <button class="modal__close" id="closeModal">&times;</button>
+      </div>
+      <form id="postForm" class="modal__form">
+        <div class="form__group">
+          <label for="postTitle" class="form__label">Title *</label>
+          <input type="text" id="postTitle" class="form__input" required>
+        </div>
+
+        <div class="form__group">
+          <label for="postDescription" class="form__label">Description *</label>
+          <textarea id="postDescription" class="form__textarea" rows="5" required></textarea>
+        </div>
+
+        <div class="form__group">
+          <label for="postCategory" class="form__label">Category *</label>
+          <input 
+            type="text" 
+            id="postCategory" 
+            class="form__input" 
+            placeholder="e.g., Tutorial, News, Review, or any custom category..."
+            required
+          >
+          <small class="form__help">Enter any category you want. Recent categories will appear as suggestions.</small>
+        </div>
+
+        <div class="form__group">
+          <label for="postYoutube" class="form__label">YouTube Embed (URL or iframe)</label>
+          <input type="text" id="postYoutube" class="form__input" placeholder="https://www.youtube.com/embed/VIDEO_ID or <iframe src=...></iframe>">
+          <small class="form__help">Paste a full embed URL (https://www.youtube.com/embed/...) or the iframe HTML. It will be stored and rendered exactly as provided.</small>
+        </div>
+
+        <div class="form__group">
+          <label for="postThumbnail" class="form__label">Thumbnail Image *</label>
+          <div class="file-upload">
+            <input type="file" id="postThumbnail" class="file-upload__input" accept="image/*">
+            <label for="postThumbnail" class="file-upload__label">
+              <i class='bx bx-cloud-upload'></i>
+              <span>Click to upload or drag and drop</span>
+              <small>PNG, JPG, GIF up to 5MB</small>
+            </label>
+            <div id="thumbnailPreview" class="file-upload__preview" style="display: none;">
+              <img id="thumbnailPreviewImg" alt="Preview">
+              <button type="button" class="file-upload__remove" id="removeThumbnail">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form__actions">
+          <button type="button" class="form__cancel" id="cancelBtn">Cancel</button>
+          <button type="submit" class="form__submit">Save Post</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteConfirmModal" class="modal" style="display: none;">
+    <div class="modal__overlay" id="deleteOverlay"></div>
+    <div class="modal__content modal__content--small">
+      <h2 class="modal__title">Delete Post</h2>
+      <p class="modal__message">Are you sure you want to delete this post? This action cannot be undone.</p>
+      <div class="modal__actions">
+        <button id="cancelDeleteBtn" class="modal__cancel-btn">Cancel</button>
+        <button id="confirmDeleteBtn" class="modal__delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts -->
+  <script src="assets/js/database.js"></script>
+  <script src="assets/js/admin.js"></script>
+</body>
+
+</html>
