@@ -33,10 +33,6 @@ class AdminPanel {
       e.preventDefault();
       const pin = this.pinInput.value;
 
-      // Debug: log pin attempts and verification result
-      console.log('Admin PIN attempt:', pin);
-      try { console.log('Stored adminPin:', DB.adminPin, 'verify result:', DB.verifyPin(pin)); } catch (err) { console.warn('DB.verifyPin not available', err); }
-
       if (DB.verifyPin(pin)) {
         sessionStorage.setItem('adminAuthenticated', 'true');
         this.authenticate();
