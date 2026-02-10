@@ -1,12 +1,24 @@
-// ===== LOCAL DATABASE SYSTEM (FALLBACK + MONGODB SUPPORT) =====
-// Stores data in localStorage locally, with MongoDB support when configured
+// ===== CLOUD DATABASE SYSTEM (Backend API + LocalStorage Fallback) =====
+// Syncs data with backend server for cross-device access
+// Falls back to localStorage when offline
 
 const DB = {
   // Admin PIN
   adminPin: '3003',
+  
+  // API Configuration
+  API_BASE_URL: window.location.origin, // Uses current domain
+  
+  // Detect if backend is available
+  isOffline: false,
+  lastCheckTime: 0,
 
   // Initialize database
-  init() {
+  async init() {
+    // Check if backend is reachable
+    await this.checkBackendAvailability();
+    
+    // Initialize localStorage as fallback
     if (!localStorage.getItem('matin_posts')) {
       localStorage.setItem('matin_posts', JSON.stringify([]));
     }
@@ -17,47 +29,21 @@ const DB = {
         lastModified: new Date().toISOString()
       }));
     }
-    // Ensure all posts have required fields
-    this.migratePosts();
-    console.log('✅ Database ready (localStorage)');
+    
+    console.log(`✅ Database ready (${this.isOffline ? 'Offline Mode - localStorage' : 'Online Mode - API Backend'})`);
   },
 
-  // Migrate posts to ensure all required fields exist
-  migratePosts() {
+  // Check if backend API is available
+  async checkBackendAvailability() {
     try {
-      const posts = JSON.parse(localStorage.getItem('matin_posts')) || [];
-      let needsSave = false;
-      
-      const migratedPosts = posts.map(post => {
-        const migrated = { ...post };
-        
-        // Ensure createdAt exists
-        if (!migrated.createdAt || typeof migrated.createdAt !== 'string') {
-          migrated.createdAt = migrated.updatedAt || new Date().toISOString();
-          needsSave = true;
-        }
-        
-        // Ensure updatedAt exists
-        if (!migrated.updatedAt || typeof migrated.updatedAt !== 'string') {
-          migrated.updatedAt = new Date().toISOString();
-          needsSave = true;
-        }
-        
-        // Ensure id exists
-        if (!migrated._id && !migrated.id) {
-          migrated._id = Date.now().toString();
-          needsSave = true;
-        }
-        
-        return migrated;
+      const response = await fetch(`${this.API_BASE_URL}/api/posts`, { 
+        method: 'GET',
+        timeout: 5000 
       });
-      
-      if (needsSave) {
-        localStorage.setItem('matin_posts', JSON.stringify(migratedPosts));
-        console.log('✅ Posts migrated to include missing fields');
-      }
+      this.isOffline = !response.ok;
     } catch (error) {
-      console.error('Error during post migration:', error);
+      console.log('⚠️ Backend unavailable, using offline mode');
+      this.isOffline = true;
     }
   },
 
@@ -65,6 +51,24 @@ const DB = {
   
   async getPosts() {
     try {
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/posts`);
+          if (response.ok) {
+            const data = await response.json();
+            const posts = data.documents || data || [];
+            // Sync to localStorage as cache
+            localStorage.setItem('matin_posts', JSON.stringify(posts));
+            return posts;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch from backend, using cache:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback to localStorage
       return JSON.parse(localStorage.getItem('matin_posts')) || [];
     } catch (e) {
       console.error('Error reading posts:', e);
@@ -74,7 +78,6 @@ const DB = {
 
   async addPost(post) {
     try {
-      const posts = await this.getPosts();
       const newPost = {
         _id: Date.now().toString(),
         id: Date.now().toString(),
@@ -86,6 +89,27 @@ const DB = {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/posts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newPost)
+          });
+          if (response.ok) {
+            console.log('✅ Post saved to backend');
+            return newPost;
+          }
+        } catch (err) {
+          console.warn('Failed to save to backend, using localStorage:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback: save to localStorage
+      const posts = await this.getPosts();
       posts.push(newPost);
       localStorage.setItem('matin_posts', JSON.stringify(posts));
       return newPost;
@@ -97,6 +121,26 @@ const DB = {
 
   async updatePost(id, post) {
     try {
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/posts/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(post)
+          });
+          if (response.ok) {
+            console.log('✅ Post updated on backend');
+            const updated = await response.json();
+            return updated;
+          }
+        } catch (err) {
+          console.warn('Failed to update on backend, using localStorage:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback: update localStorage
       const posts = await this.getPosts();
       const index = posts.findIndex(p => p._id === id || p.id === id);
       if (index !== -1) {
@@ -121,6 +165,22 @@ const DB = {
 
   async deletePost(id) {
     try {
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/posts/${id}`, {
+            method: 'DELETE'
+          });
+          if (response.ok) {
+            console.log('✅ Post deleted from backend');
+          }
+        } catch (err) {
+          console.warn('Failed to delete from backend, using localStorage:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback: delete from localStorage
       const posts = await this.getPosts();
       const filteredPosts = posts.filter(p => p._id !== id && p.id !== id);
       localStorage.setItem('matin_posts', JSON.stringify(filteredPosts));
@@ -134,15 +194,32 @@ const DB = {
   async getPostById(id) {
     try {
       console.log('📍 Searching for post with ID:', id);
+      
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/posts/${id}`);
+          if (response.ok) {
+            const post = await response.json();
+            console.log('🎯 Found post from backend:', post);
+            return post;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch from backend, using cache:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback to localStorage
       const posts = await this.getPosts();
-      console.log('📚 Total posts in database:', posts.length);
+      console.log('📚 Total posts in cache:', posts.length);
       
       if (posts.length > 0) {
         console.log('📍 Posts IDs:', posts.map(p => ({ _id: p._id, id: p.id })));
       }
       
       const found = posts.find(p => p._id === id || p.id === id);
-      console.log('🎯 Found post:', found);
+      console.log('🎯 Found post from cache:', found);
       return found || null;
     } catch (error) {
       console.error('Error getting post by ID:', error);
@@ -169,6 +246,24 @@ const DB = {
   
   async getSettings() {
     try {
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/settings`);
+          if (response.ok) {
+            const data = await response.json();
+            const settings = data.document || data || {};
+            // Sync to localStorage as cache
+            localStorage.setItem('matin_settings', JSON.stringify(settings));
+            return settings;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch settings from backend:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback to localStorage
       return JSON.parse(localStorage.getItem('matin_settings')) || {};
     } catch (e) {
       console.error('Error reading settings:', e);
@@ -184,6 +279,26 @@ const DB = {
         ...settings,
         lastModified: new Date().toISOString()
       };
+      
+      // Try backend first if online
+      if (!this.isOffline) {
+        try {
+          const response = await fetch(`${this.API_BASE_URL}/api/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedSettings)
+          });
+          if (response.ok) {
+            console.log('✅ Settings saved to backend');
+            return updatedSettings;
+          }
+        } catch (err) {
+          console.warn('Failed to save settings to backend:', err);
+          this.isOffline = true;
+        }
+      }
+      
+      // Fallback: save to localStorage
       localStorage.setItem('matin_settings', JSON.stringify(updatedSettings));
       return updatedSettings;
     } catch (error) {
