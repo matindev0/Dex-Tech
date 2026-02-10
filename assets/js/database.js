@@ -7,7 +7,14 @@ const DB = {
   adminPin: '3003',
   
   // API Configuration
-  API_BASE_URL: window.location.origin, // Uses current domain
+  API_BASE_URL: (() => {
+    // In production (Netlify), use your backend URL
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return 'https://YOUR_BACKEND_URL'; // Replace with Render/Railway/Heroku URL
+    }
+    // In development, use localhost
+    return window.location.origin;
+  })(),
   
   // Detect if backend is available
   isOffline: false,
