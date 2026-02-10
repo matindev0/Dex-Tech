@@ -1,7 +1,7 @@
 /* ===== POST VIEW PAGE STYLES ===== */
 
 .post-view {
-  padding-top: 5rem;
+  padding-top: 7rem;
   padding-bottom: 3rem;
   max-width: 900px;
 }
@@ -13,6 +13,7 @@
   gap: 0.5rem;
   padding: 0.7rem 1.2rem;
   margin-bottom: 2rem;
+  margin-top: 1rem;
   color: var(--first-color);
   background-color: rgba(65, 88, 208, 0.1);
   border: 1px solid rgba(65, 88, 208, 0.2);
@@ -206,7 +207,7 @@
 /* Responsive Design */
 @media screen and (max-width: 768px) {
   .post-view {
-    padding-top: 4rem;
+    padding-top: 5.5rem;
     padding-bottom: 2rem;
   }
 
