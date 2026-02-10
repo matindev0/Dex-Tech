@@ -19,10 +19,15 @@ class PostView {
     return params.get('id');
   }
 
-  loadPost() {
-    const post = DB.getPostById(this.postId);
+  async loadPost() {
+    console.log('🔍 Post ID from URL:', this.postId);
+    const post = await DB.getPostById(this.postId);
+    
+    console.log('📦 Post fetched:', post);
+    console.log('📋 Available posts:', await DB.getPosts());
 
     if (!post) {
+      console.warn('⚠️ Post not found');
       this.showError();
       return;
     }

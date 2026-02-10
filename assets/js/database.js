@@ -133,8 +133,17 @@ const DB = {
 
   async getPostById(id) {
     try {
+      console.log('📍 Searching for post with ID:', id);
       const posts = await this.getPosts();
-      return posts.find(p => p._id === id || p.id === id) || null;
+      console.log('📚 Total posts in database:', posts.length);
+      
+      if (posts.length > 0) {
+        console.log('📍 Posts IDs:', posts.map(p => ({ _id: p._id, id: p.id })));
+      }
+      
+      const found = posts.find(p => p._id === id || p.id === id);
+      console.log('🎯 Found post:', found);
+      return found || null;
     } catch (error) {
       console.error('Error getting post by ID:', error);
       return null;
