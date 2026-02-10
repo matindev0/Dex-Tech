@@ -51,15 +51,15 @@ class PostsPage {
 
     if (searchQuery) {
       filtered = filtered.filter(post =>
-        post.title.toLowerCase().includes(searchQuery) ||
-        post.description.toLowerCase().includes(searchQuery) ||
-        post.category.toLowerCase().includes(searchQuery)
+        (post.title && post.title.toLowerCase().includes(searchQuery)) ||
+        (post.description && post.description.toLowerCase().includes(searchQuery)) ||
+        (post.category && post.category.toLowerCase().includes(searchQuery))
       );
     }
 
     if (categoryQuery) {
       filtered = filtered.filter(post =>
-        post.category.toLowerCase().includes(categoryQuery)
+        post.category && post.category.toLowerCase().includes(categoryQuery)
       );
     }
 
@@ -94,11 +94,14 @@ class PostsPage {
 
   createPostCard(post) {
     const truncateDescription = (text, length = 150) => {
-      return text.length > length ? text.substring(0, length) + '...' : text;
+      return text && text.length > length ? text.substring(0, length) + '...' : (text || '');
     };
 
     const formatDate = (date) => {
-      return new Date(date).toLocaleDateString('en-US', {
+      if (!date) return 'Unknown Date';
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return 'Unknown Date';
+      return d.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
@@ -111,10 +114,10 @@ class PostsPage {
     return `
       <article class="posts__card" onclick="window.location.href='post-view.html?id=${post._id || post.id}'">
         <div class="posts__card-image" ${thumbnail}>
-          <span class="posts__card-category">${post.category}</span>
+          <span class="posts__card-category">${post.category || 'Uncategorized'}</span>
         </div>
         <div class="posts__card-content">
-          <h3 class="posts__card-title">${post.title}</h3>
+          <h3 class="posts__card-title">${post.title || 'Untitled'}</h3>
           <p class="posts__card-description">${truncateDescription(post.description)}</p>
           <div class="posts__card-meta">
             <small class="posts__card-date">

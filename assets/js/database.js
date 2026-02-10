@@ -17,7 +17,48 @@ const DB = {
         lastModified: new Date().toISOString()
       }));
     }
+    // Ensure all posts have required fields
+    this.migratePosts();
     console.log('✅ Database ready (localStorage)');
+  },
+
+  // Migrate posts to ensure all required fields exist
+  migratePosts() {
+    try {
+      const posts = JSON.parse(localStorage.getItem('matin_posts')) || [];
+      let needsSave = false;
+      
+      const migratedPosts = posts.map(post => {
+        const migrated = { ...post };
+        
+        // Ensure createdAt exists
+        if (!migrated.createdAt || typeof migrated.createdAt !== 'string') {
+          migrated.createdAt = migrated.updatedAt || new Date().toISOString();
+          needsSave = true;
+        }
+        
+        // Ensure updatedAt exists
+        if (!migrated.updatedAt || typeof migrated.updatedAt !== 'string') {
+          migrated.updatedAt = new Date().toISOString();
+          needsSave = true;
+        }
+        
+        // Ensure id exists
+        if (!migrated._id && !migrated.id) {
+          migrated._id = Date.now().toString();
+          needsSave = true;
+        }
+        
+        return migrated;
+      });
+      
+      if (needsSave) {
+        localStorage.setItem('matin_posts', JSON.stringify(migratedPosts));
+        console.log('✅ Posts migrated to include missing fields');
+      }
+    } catch (error) {
+      console.error('Error during post migration:', error);
+    }
   },
 
   // ===== POSTS OPERATIONS =====
@@ -105,9 +146,9 @@ const DB = {
       const posts = await this.getPosts();
       const lowerQuery = query.toLowerCase();
       return posts.filter(post =>
-        post.title.toLowerCase().includes(lowerQuery) ||
-        post.description.toLowerCase().includes(lowerQuery) ||
-        post.category.toLowerCase().includes(lowerQuery)
+        (post.title && post.title.toLowerCase().includes(lowerQuery)) ||
+        (post.description && post.description.toLowerCase().includes(lowerQuery)) ||
+        (post.category && post.category.toLowerCase().includes(lowerQuery))
       );
     } catch (error) {
       console.error('Error searching posts:', error);

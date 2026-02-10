@@ -40,17 +40,21 @@ class PostView {
     }
 
     // Set title
-    document.getElementById('postTitle').textContent = post.title;
+    document.getElementById('postTitle').textContent = post.title || 'Untitled Post';
 
     // Set category and date
-    document.getElementById('postCategory').textContent = post.category;
+    document.getElementById('postCategory').textContent = post.category || 'Uncategorized';
     document.getElementById('postDate').textContent = this.formatDate(post.createdAt);
 
     // Set description (with line breaks)
     const descElement = document.getElementById('postDescription');
-    descElement.innerHTML = post.description.split('\n').map(line => 
-      `<p>${line.trim()}</p>`
-    ).join('');
+    if (post.description) {
+      descElement.innerHTML = post.description.split('\n').map(line => 
+        `<p>${line.trim()}</p>`
+      ).join('');
+    } else {
+      descElement.innerHTML = '<p>No description available</p>';
+    }
 
     // Set YouTube video (support stored ID, full embed URL, or raw iframe HTML)
     if (post.youtubeEmbed) {
@@ -119,7 +123,9 @@ class PostView {
   }
 
   formatDate(dateString) {
+    if (!dateString) return 'Unknown Date';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Unknown Date';
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
