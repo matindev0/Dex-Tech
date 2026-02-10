@@ -102,6 +102,31 @@ app.post('/api/posts', async (req, res) => {
 });
 
 // UPDATE post
+app.put('/api/posts/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const now = new Date();
+    const body = req.body || {};
+    const result = await pgPool.query(
+      `UPDATE posts SET data = $1, updated_at = $2 WHERE id = $3 RETURNING id, data, created_at, updated_at`,
+      [body, now.toISOString(), id]
+    );
+    if (!result.rows[0]) return res.json(null);
+    const r = result.rows[0];
+    const post = {
+      ...r.data,
+      _id: id,
+      id: id,
+      createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null
+    };
+    return res.json(post);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// UPDATE post (PATCH alternative)
 app.patch('/api/posts/:id', async (req, res) => {
   try {
     const id = req.params.id;
