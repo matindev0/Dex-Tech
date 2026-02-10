@@ -2,7 +2,7 @@
 
 /* Posts Section */
 .posts {
-  padding-top: 3.5rem;
+  padding-top: 5rem;
   padding-bottom: 2.5rem;
 }
 
@@ -244,7 +244,7 @@
 
 @media screen and (min-width: 768px) {
   .posts {
-    padding-top: 4rem;
+    padding-top: 5rem;
     padding-bottom: 3rem;
   }
 
