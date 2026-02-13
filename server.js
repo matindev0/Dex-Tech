@@ -1,8 +1,6 @@
-// ===== MONGODB BACKED SERVER =====
-// Uses MongoDB Atlas for data persistence
-// No file-based storage needed!
-
-require('dotenv').config();
+// ===== HYBRID SERVER =====
+// Uses MongoDB Atlas if configured, otherwise falls back to file-based storage
+// Can use environment variables: MONGO_URI, DB_NAME, PORT
 
 const http = require('http');
 const fs = require('fs');
@@ -12,179 +10,271 @@ const { MongoClient, ObjectId } = require('mongodb');
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = __dirname;
 const UPLOAD_DIR = path.join(ROOT_DIR, 'assets', 'images', 'uploads');
+const DB_FILE = path.join(ROOT_DIR, 'database.json');
 
-// ===== MONGODB CONFIGURATION =====
-// Get from environment variable (.env file)
-const MONGO_URI = process.env.MONGO_URI;
+// ===== CONFIGURATION =====
+const MONGO_URI = process.env.MONGO_URI || null;
 const DB_NAME = process.env.DB_NAME || 'dextech';
 
-if (!MONGO_URI) {
-  console.error('ERROR: MONGO_URI environment variable is not set!');
-  console.error('Please create a .env file with your MongoDB connection string.');
-  console.error('See .env.example for instructions.');
-  process.exit(1);
+// Initialize local database if it doesn't exist and MongoDB is not configured
+function initializeLocalDB() {
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify({
+      posts: [],
+      settings: {
+        adsenseCode: '',
+        analyticsCode: '',
+        lastModified: new Date().toISOString()
+      }
+    }, null, 2));
+  }
+}
+
+// Read local database
+function readLocalDB() {
+  try {
+    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  } catch (e) {
+    return { posts: [], settings: {} };
+  }
+}
+
+// Write local database
+function writeLocalDB(data) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
 let db = null;
 let client = null;
+let useMongoDB = false;
 
-// ===== MONGODB FUNCTIONS =====
+// ===== DATABASE FUNCTIONS (HYBRID: MONGODB OR FILE-BASED) =====
 
 async function connectToMongo() {
+  if (!MONGO_URI) {
+    console.log('ℹ️ MongoDB URI not configured. Using local file-based database.');
+    initializeLocalDB();
+    useMongoDB = false;
+    return true;
+  }
+  
   try {
     client = new MongoClient(MONGO_URI);
     await client.connect();
     db = client.db(DB_NAME);
-    console.log('Connected to MongoDB');
+    console.log('✅ Connected to MongoDB');
     
     // Create indexes
     await db.collection('posts').createIndex({ createdAt: -1 });
     await db.collection('settings').createIndex({ id: 1 });
     
+    useMongoDB = true;
     return true;
   } catch (error) {
-    console.error('MongoDB connection error:', error.message);
-    return false;
+    console.error('⚠️ MongoDB connection failed:', error.message);
+    console.log('📁 Falling back to local file-based database.');
+    initializeLocalDB();
+    useMongoDB = false;
+    return true;
   }
 }
 
 async function getPosts() {
-  if (!db) return [];
-  try {
-    return await db.collection('posts').find({}).sort({ createdAt: -1 }).toArray();
-  } catch (_) {
-    return [];
+  if (useMongoDB && db) {
+    try {
+      return await db.collection('posts').find({}).sort({ createdAt: -1 }).toArray();
+    } catch (_) {
+      return [];
+    }
+  } else {
+    const data = readLocalDB();
+    return data.posts || [];
   }
 }
 
 async function getPostById(id) {
-  if (!db) return null;
-  try {
-    return await db.collection('posts').findOne({ id: id });
-  } catch (_) {
-    return null;
+  if (useMongoDB && db) {
+    try {
+      return await db.collection('posts').findOne({ id: id });
+    } catch (_) {
+      return null;
+    }
+  } else {
+    const data = readLocalDB();
+    return (data.posts || []).find(p => p.id === id) || null;
   }
 }
 
 async function addPost(post) {
-  if (!db) return null;
-  try {
-    const newPost = {
-      id: Date.now().toString(),
-      title: post.title || 'Untitled',
-      description: post.description || '',
-      category: post.category || 'general',
-      youtubeEmbed: post.youtubeEmbed || '',
-      thumbnail: post.thumbnail || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    await db.collection('posts').insertOne(newPost);
-    await updateSettingsLastModified(newPost.createdAt);
+  const newPost = {
+    id: Date.now().toString(),
+    title: post.title || 'Untitled',
+    description: post.description || '',
+    category: post.category || 'general',
+    youtubeEmbed: post.youtubeEmbed || '',
+    thumbnail: post.thumbnail || '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  if (useMongoDB && db) {
+    try {
+      await db.collection('posts').insertOne(newPost);
+      await updateSettingsLastModified(newPost.createdAt);
+      return newPost;
+    } catch (_) {
+      return null;
+    }
+  } else {
+    const data = readLocalDB();
+    data.posts = data.posts || [];
+    data.posts.push(newPost);
+    writeLocalDB(data);
     return newPost;
-  } catch (_) {
-    return null;
   }
 }
 
 async function updatePost(id, post) {
-  if (!db) return null;
-  try {
-    const existing = await db.collection('posts').findOne({ id: id });
-    if (!existing) return null;
+  if (useMongoDB && db) {
+    try {
+      const existing = await db.collection('posts').findOne({ id: id });
+      if (!existing) return null;
+      
+      const updated = {
+        ...existing,
+        title: post.title || existing.title,
+        description: post.description || existing.description,
+        category: post.category || existing.category,
+        youtubeEmbed: post.youtubeEmbed !== undefined ? post.youtubeEmbed : existing.youtubeEmbed,
+        thumbnail: post.thumbnail !== undefined ? post.thumbnail : existing.thumbnail,
+        updatedAt: new Date().toISOString()
+      };
+      
+      await db.collection('posts').replaceOne({ id: id }, updated);
+      await updateSettingsLastModified(updated.updatedAt);
+      return updated;
+    } catch (_) {
+      return null;
+    }
+  } else {
+    const data = readLocalDB();
+    const index = (data.posts || []).findIndex(p => p.id === id);
+    if (index === -1) return null;
     
     const updated = {
-      ...existing,
-      title: post.title || existing.title,
-      description: post.description || existing.description,
-      category: post.category || existing.category,
-      youtubeEmbed: post.youtubeEmbed !== undefined ? post.youtubeEmbed : existing.youtubeEmbed,
-      thumbnail: post.thumbnail !== undefined ? post.thumbnail : existing.thumbnail,
+      ...data.posts[index],
+      title: post.title || data.posts[index].title,
+      description: post.description || data.posts[index].description,
+      category: post.category || data.posts[index].category,
+      youtubeEmbed: post.youtubeEmbed !== undefined ? post.youtubeEmbed : data.posts[index].youtubeEmbed,
+      thumbnail: post.thumbnail !== undefined ? post.thumbnail : data.posts[index].thumbnail,
       updatedAt: new Date().toISOString()
     };
     
-    await db.collection('posts').replaceOne({ id: id }, updated);
-    await updateSettingsLastModified(updated.updatedAt);
+    data.posts[index] = updated;
+    writeLocalDB(data);
     return updated;
-  } catch (_) {
-    return null;
   }
 }
 
 async function deletePost(id) {
-  if (!db) return false;
-  try {
-    const result = await db.collection('posts').deleteOne({ id: id });
-    if (result.deletedCount > 0) {
-      await updateSettingsLastModified(new Date().toISOString());
-      return true;
+  if (useMongoDB && db) {
+    try {
+      const result = await db.collection('posts').deleteOne({ id: id });
+      if (result.deletedCount > 0) {
+        await updateSettingsLastModified(new Date().toISOString());
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
-    return false;
-  } catch (_) {
-    return false;
+  } else {
+    const data = readLocalDB();
+    const index = (data.posts || []).findIndex(p => p.id === id);
+    if (index === -1) return false;
+    
+    data.posts.splice(index, 1);
+    writeLocalDB(data);
+    return true;
   }
 }
 
 async function getSettings() {
-  if (!db) return null;
-  try {
-    const settings = await db.collection('settings').findOne({ id: 'appSettings' });
-    return settings || {
+  if (useMongoDB && db) {
+    try {
+      const settings = await db.collection('settings').findOne({ id: 'appSettings' });
+      return settings || {
+        adsenseCode: '',
+        analyticsCode: '',
+        lastModified: new Date().toISOString()
+      };
+    } catch (_) {
+      return null;
+    }
+  } else {
+    const data = readLocalDB();
+    return data.settings || {
       adsenseCode: '',
       analyticsCode: '',
       lastModified: new Date().toISOString()
     };
-  } catch (_) {
-    return null;
   }
 }
 
 async function updateSettings(newSettings) {
-  if (!db) return null;
-  try {
-    const settings = {
-      id: 'appSettings',
-      adsenseCode: newSettings.adsenseCode || '',
-      analyticsCode: newSettings.analyticsCode || '',
-      lastModified: new Date().toISOString()
-    };
-    
-    await db.collection('settings').replaceOne({ id: 'appSettings' }, settings, { upsert: true });
-    return settings;
-  } catch (_) {
-    return null;
+  const settings = {
+    id: 'appSettings',
+    adsenseCode: newSettings.adsenseCode || '',
+    analyticsCode: newSettings.analyticsCode || '',
+    lastModified: new Date().toISOString()
+  };
+  
+  if (useMongoDB && db) {
+    try {
+      await db.collection('settings').replaceOne({ id: 'appSettings' }, settings, { upsert: true });
+      return settings;
+    } catch (_) {
+      return null;
+    }
+  } else {
+    const data = readLocalDB();
+    if (!data.settings) data.settings = {};
+    data.settings.lastModified = timestamp;
+    writeLocalDB(data);
   }
 }
 
-async function updateSettingsLastModified(timestamp) {
-  if (!db) return;
-  try {
-    await db.collection('settings').updateOne(
-      { id: 'appSettings' },
-      { $set: { lastModified: timestamp } },
-      { upsert: true }
-    );
-  } catch (_) {}
-}
-
 async function resetData() {
-  if (!db) return false;
-  try {
-    await db.collection('posts').deleteMany({});
-    await db.collection('settings').replaceOne(
-      { id: 'appSettings' },
-      {
+  if (useMongoDB && db) {
+    try {
+      await db.collection('posts').deleteMany({});
+      await db.collection('settings').replaceOne(
+        { id: 'appSettings' },
+        {
+          id: 'appSettings',
+          adsenseCode: '',
+          analyticsCode: '',
+          lastModified: new Date().toISOString()
+        },
+        { upsert: true }
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  } else {
+    const data = {
+      posts: [],
+      settings: {
         id: 'appSettings',
         adsenseCode: '',
         analyticsCode: '',
         lastModified: new Date().toISOString()
-      },
-      { upsert: true }
-    );
+      }
+    };
+    writeLocalDB(data);
     return true;
-  } catch (_) {
-    return false;
   }
 }
 
@@ -447,19 +537,18 @@ server.listen(PORT, async () => {
 ║     Dex-Tech Server Starting...      ║
 ╠════════════════════════════════════════╣
 ║  Port: ${PORT}
-║  MongoDB: ${MONGO_URI.includes('mongodb') ? 'Cloud (MongoDB Atlas)' : 'Local'}
-║  Database: ${DB_NAME}
+║  Database: Hybrid (MongoDB or File)
 ╚════════════════════════════════════════╝
   `);
   
-  // Try to connect to MongoDB
-  const connected = await connectToMongo();
+  // Try to connect to database
+  await connectToMongo();
   
-  if (connected) {
-    console.log('MongoDB connected successfully!');
+  if (useMongoDB) {
+    console.log('✅ Using MongoDB Cloud (MongoDB Atlas)');
   } else {
-    console.log('Warning: MongoDB not connected. Data will not persist.');
-    console.log('Please set MONGO_URI environment variable or update server.js');
+    console.log('✅ Using local file-based database (database.json)');
+    console.log('   Set MONGO_URI environment variable to switch to MongoDB');
   }
   
   console.log(`\nServer running at http://localhost:${PORT}`);
