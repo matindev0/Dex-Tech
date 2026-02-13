@@ -1,0 +1,13 @@
+{
+  "name": "dex-tech",
+  "version": "1.0.0",
+  "description": "Personal website with MongoDB database",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.3.0"
+  }
+}

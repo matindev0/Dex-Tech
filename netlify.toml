@@ -1,18 +1,20 @@
 # Netlify Configuration for Dex-Tech Frontend
 # This only deploys the static frontend files
-# The Node.js backend is deployed separately to Render/Railway/Heroku
+# The Node.js backend (server.js) must be deployed separately
 
 [build]
   # No build command needed - files are already static
   command = "echo 'Frontend deployment'"
   publish = "."
 
-# Redirect API calls to backend server (Render/Railway/Heroku)
-# After deploying server.js, replace YOUR_BACKEND_URL with your actual backend URL
-# Example: to = "https://dex-tech-backend.onrender.com/api/:splat"
+# Redirect API calls to your deployed backend server
+# IMPORTANT: After deploying server.js, update the URL below
+# 
+# Deploy backend first, then update this file with your backend URL
+# Example: to = "https://dex-tech-api.onrender.com/api/:splat"
 [[redirects]]
   from = "/api/*"
-  to = "https://dex-tech.netlify.app/api/:splat"
+  to = "https://YOUR_BACKEND_URL/api/:splat"
   status = 200
   force = true
 
