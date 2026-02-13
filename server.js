@@ -13,7 +13,7 @@ const UPLOAD_DIR = path.join(ROOT_DIR, 'assets', 'images', 'uploads');
 const DB_FILE = path.join(ROOT_DIR, 'database.json');
 
 // ===== CONFIGURATION =====
-const MONGO_URI = process.env.MONGO_URI || null;
+const MONGO_URI = process.env.MONGO_URI || `mongodb+srv://matindev:Matin@cluster0.lcv6xlw.mongodb.net/?retryWrites=true&w=majority`;
 const DB_NAME = process.env.DB_NAME || 'dextech';
 
 // Initialize local database if it doesn't exist and MongoDB is not configured
