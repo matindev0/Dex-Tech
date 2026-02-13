@@ -13,7 +13,9 @@ const UPLOAD_DIR = path.join(ROOT_DIR, 'assets', 'images', 'uploads');
 const DB_FILE = path.join(ROOT_DIR, 'database.json');
 
 // ===== CONFIGURATION =====
-const MONGO_URI = process.env.MONGO_URI || `mongodb+srv://matindev:Matin@cluster0.lcv6xlw.mongodb.net/?retryWrites=true&w=majority`;
+// Set MONGO_URI environment variable or it will use local database
+// MONGO_URI format: mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
+const MONGO_URI = process.env.MONGO_URI || null;
 const DB_NAME = process.env.DB_NAME || 'dextech';
 
 // Initialize local database if it doesn't exist and MongoDB is not configured
@@ -71,8 +73,17 @@ async function connectToMongo() {
     useMongoDB = true;
     return true;
   } catch (error) {
-    console.error('⚠️ MongoDB connection failed:', error.message);
-    console.log('📁 Falling back to local file-based database.');
+    console.error('❌ MongoDB connection failed!');
+    console.error('Error:', error.message);
+    if (error.message.includes('ENOTFOUND')) {
+      console.error('→ Cannot reach MongoDB server. Check your internet connection.');
+    } else if (error.message.includes('authentication failed')) {
+      console.error('→ Invalid username or password in MongoDB connection string.');
+    } else if (error.message.includes('3000')) {
+      console.error('→ Port conflict. Another process is using port 3000.');
+    }
+    console.log('\n📁 Using local file-based database instead (database.json)');
+    console.log('To use MongoDB, fix the connection string and restart the server.\n');
     initializeLocalDB();
     useMongoDB = false;
     return true;
