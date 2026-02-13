@@ -5,6 +5,7 @@
 const DB = {
   // Use Node.js server if available
   useServer: true,
+  // Empty string means 'same origin' (e.g. current domain)
   serverUrl: '',
   
   state: {
@@ -31,50 +32,71 @@ const DB = {
     // Load initial state
     await this.refreshState();
     
-    if (this.useServer && this.serverUrl) {
+    if (this.useServer) {
       console.log('Database ready (Node.js server mode)');
     } else {
       console.log('Database ready (local mode)');
     }
   },
 
-  // Detect if Node.js server is running
+  // Detect API server endpoint
   detectServer() {
-    // Check if we're on localhost with the Node.js server
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      // Try common ports
-      const port = window.location.port || '3000';
-      this.serverUrl = `http://localhost:${port}`;
+    const protocol = window.location.protocol;
+
+    // Optional explicit API base override.
+    if (typeof window.DEX_TECH_API_BASE === 'string' && window.DEX_TECH_API_BASE.trim()) {
+      this.serverUrl = window.DEX_TECH_API_BASE.trim().replace(/\/+$/, '');
       this.useServer = true;
-    } else {
-      // On deployed site, server URL would need to be configured
-      this.useServer = false;
-      this.serverUrl = '';
+      return;
     }
+
+    // Opening HTML directly from disk can still use a local API server.
+    if (protocol === 'file:') {
+      this.serverUrl = 'http://localhost:3000';
+      this.useServer = true;
+      return;
+    }
+
+    // Default: same-origin API (/api/*), works for localhost, LAN IP, and deployed domains.
+    if (protocol === 'http:' || protocol === 'https:') {
+      this.serverUrl = '';
+      this.useServer = true;
+      return;
+    }
+
+    this.serverUrl = '';
+    this.useServer = false;
   },
 
   async refreshState() {
-    // Try Node.js server first
-    if (this.useServer && this.serverUrl) {
+    // ALWAYS try Node.js server first - don't use localStorage cache
+    if (this.useServer) {
       try {
         const data = await this.request('/api/data');
         if (data) {
           this.state.adminPin = data.adminPin || this.state.adminPin;
           this.state.posts = Array.isArray(data.posts) ? data.posts : [];
           this.state.settings = data.settings || this.state.settings;
+          console.log('✅ Loaded data from server');
           return this.state;
         }
       } catch (error) {
-        console.warn('Server unavailable, using local mode');
-        this.useServer = false;
+        console.warn('⚠️ Server unavailable');
       }
     }
 
-    // Fallback to localStorage
+    // Only use localStorage fallback in file:// mode.
+    // In http/https mode, silent local fallback causes per-user data drift.
+    if (window.location.protocol !== 'file:') {
+      return this.state;
+    }
+
+    // Only use localStorage if server is NOT available
     const localPosts = this.loadFromLocalStorage('posts');
     const localSettings = this.loadFromLocalStorage('settings');
     
     if (localPosts && localPosts.length > 0) {
+      console.log('📁 Using cached posts from localStorage');
       this.state.posts = localPosts;
       this.state.settings = localSettings || this.state.settings;
     } else {
@@ -135,19 +157,8 @@ const DB = {
   },
 
   async addPost(post) {
-    const newPost = {
-      id: Date.now().toString(),
-      title: post.title || 'Untitled',
-      description: post.description || '',
-      category: post.category || 'general',
-      youtubeEmbed: post.youtubeEmbed || '',
-      thumbnail: post.thumbnail || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    // Try server first
-    if (this.useServer && this.serverUrl) {
+    // ONLY save to server - not localStorage
+    if (this.useServer) {
       try {
         const created = await this.request('/api/posts', 'POST', post);
         if (created) {
@@ -155,32 +166,17 @@ const DB = {
           return created;
         }
       } catch (error) {
-        console.warn('Server save failed, using localStorage');
+        console.error('❌ Failed to save post to server:', error.message);
+        throw error;
       }
     }
 
-    // Fallback to localStorage
-    this.state.posts.unshift(newPost);
-    this.state.settings.lastModified = newPost.createdAt;
-    this.saveToLocalStorage('posts', this.state.posts);
-    this.saveToLocalStorage('settings', this.state.settings);
-    
-    return newPost;
+    throw new Error('Server not available. Cannot save post.');
   },
 
   async updatePost(id, post) {
-    const updated = {
-      id,
-      title: post.title || '',
-      description: post.description || '',
-      category: post.category || '',
-      youtubeEmbed: post.youtubeEmbed || '',
-      thumbnail: post.thumbnail || '',
-      updatedAt: new Date().toISOString()
-    };
-
-    // Try server first
-    if (this.useServer && this.serverUrl) {
+    // ONLY update on server - not localStorage
+    if (this.useServer) {
       try {
         const result = await this.request(`/api/posts/${id}`, 'PUT', post);
         if (result) {
@@ -188,26 +184,17 @@ const DB = {
           return result;
         }
       } catch (error) {
-        console.warn('Server update failed, using localStorage');
+        console.error('❌ Failed to update post on server:', error.message);
+        throw error;
       }
     }
 
-    // Fallback to localStorage
-    const index = this.state.posts.findIndex(p => p.id === id);
-    if (index !== -1) {
-      updated.createdAt = this.state.posts[index].createdAt;
-      this.state.posts[index] = updated;
-    }
-    this.state.settings.lastModified = updated.updatedAt;
-    this.saveToLocalStorage('posts', this.state.posts);
-    this.saveToLocalStorage('settings', this.state.settings);
-    
-    return updated;
+    throw new Error('Server not available. Cannot update post.');
   },
 
   async deletePost(id) {
     // Try server first
-    if (this.useServer && this.serverUrl) {
+    if (this.useServer) {
       try {
         await this.request(`/api/posts/${id}`, 'DELETE');
         await this.refreshState();
@@ -239,7 +226,7 @@ const DB = {
 
   async updateSettings(settings) {
     // Try server first
-    if (this.useServer && this.serverUrl) {
+    if (this.useServer) {
       try {
         const result = await this.request('/api/settings', 'PUT', settings);
         if (result) {
@@ -416,7 +403,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
   // ===== RESET =====
   async resetAll() {
-    if (this.useServer && this.serverUrl) {
+    if (this.useServer) {
       try {
         await this.request('/api/reset', 'POST');
         await this.refreshState();
