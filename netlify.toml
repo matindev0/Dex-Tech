@@ -1,20 +1,19 @@
-# Netlify Configuration for Dex-Tech Frontend
-# This only deploys the static frontend files
-# The Node.js backend (server.js) must be deployed separately
+# Netlify Configuration for Dex-Tech
+# Static frontend + Netlify Functions API
 
 [build]
   # No build command needed - files are already static
   command = "echo 'Frontend deployment'"
   publish = "."
 
-# Redirect API calls to your deployed backend server
-# IMPORTANT: After deploying server.js, update the URL below
-# 
-# Deploy backend first, then update this file with your backend URL
-# Example: to = "https://dex-tech-api.onrender.com/api/:splat"
+# Netlify Functions
+[functions]
+  directory = "netlify/functions"
+
+# Redirect API calls to Netlify Function API
 [[redirects]]
   from = "/api/*"
-  to = "https://YOUR_BACKEND_URL/api/:splat"
+  to = "/.netlify/functions/api/:splat"
   status = 200
   force = true
 
