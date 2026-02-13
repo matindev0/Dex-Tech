@@ -1,190 +1,72 @@
-// server.js - Backend using Postgres (Neon) for Dex-Tech
-const express = require('express');
-const cors = require('cors');
-const { Pool } = require('pg');
+// ===== STATIC SERVER (OPTIONAL) =====
+// This project no longer requires a backend database
+// Use this simple server for local development or static hosting
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+// OPTION 1: Python (No dependencies required)
+// python -m http.server 8000
 
-// Postgres (Neon) connection — required for this server
-const PG_CONNECTION_STRING = process.env.PG_CONNECTION_STRING || null;
+// OPTION 2: Node.js (No dependencies required) 
+// Use the following simple HTTP server with Node:
 
-let pgPool = null;
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-async function connectDB() {
-  if (!PG_CONNECTION_STRING) {
-    console.error('❌ PG_CONNECTION_STRING is not set. Please set it to your Neon/Postgres connection string.');
-    process.exit(1);
-  }
-
-  try {
-    pgPool = new Pool({ connectionString: PG_CONNECTION_STRING, max: 10 });
-    await pgPool.query('SELECT 1');
-    console.log('✅ Connected to Postgres (PG)');
-
-    // Ensure posts and settings tables exist
-    await pgPool.query(`
-      CREATE TABLE IF NOT EXISTS posts (
-        id TEXT PRIMARY KEY,
-        data JSONB,
-        created_at TIMESTAMPTZ,
-        updated_at TIMESTAMPTZ
-      );
-    `);
-    await pgPool.query(`
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        data JSONB,
-        updated_at TIMESTAMPTZ
-      );
-    `);
-  } catch (error) {
-    console.error('❌ Postgres connection error:', error);
-    process.exit(1);
-  }
-}
-
-// ===== POSTS ENDPOINTS =====
-
-// GET all posts
-app.get('/api/posts', async (req, res) => {
-  try {
-    const { rows } = await pgPool.query('SELECT id, data, created_at, updated_at FROM posts ORDER BY created_at DESC');
-    const posts = rows.map(r => ({
-      ...r.data,
-      _id: r.id || r.data._id || null,
-      id: r.id || r.data.id || null,
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
-      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null
-    }));
-    res.json({ documents: posts });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET single post
-app.get('/api/posts/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { rows } = await pgPool.query('SELECT data, created_at, updated_at FROM posts WHERE id = $1 LIMIT 1', [id]);
-    if (!rows[0]) return res.json(null);
-    const r = rows[0];
-    const post = {
-      ...r.data,
-      _id: id,
-      id: id,
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
-      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null
-    };
-    res.json(post);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// CREATE post
-app.post('/api/posts', async (req, res) => {
-  try {
-    const body = req.body || {};
-    const id = body._id || body.id || Date.now().toString();
-    const now = new Date();
-    const result = await pgPool.query(
-      `INSERT INTO posts (id, data, created_at, updated_at) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at RETURNING id`,
-      [id, body, now.toISOString(), now.toISOString()]
-    );
-    return res.json({ insertedId: result.rows[0].id });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// UPDATE post
-app.put('/api/posts/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const now = new Date();
-    const body = req.body || {};
-    const result = await pgPool.query(
-      `UPDATE posts SET data = $1, updated_at = $2 WHERE id = $3 RETURNING id, data, created_at, updated_at`,
-      [body, now.toISOString(), id]
-    );
-    if (!result.rows[0]) return res.json(null);
-    const r = result.rows[0];
-    const post = {
-      ...r.data,
-      _id: id,
-      id: id,
-      createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
-      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null
-    };
-    return res.json(post);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// UPDATE post (PATCH alternative)
-app.patch('/api/posts/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const now = new Date();
-    const body = req.body || {};
-    const result = await pgPool.query(
-      `UPDATE posts SET data = $1, updated_at = $2 WHERE id = $3 RETURNING id`,
-      [body, now.toISOString(), id]
-    );
-    return res.json({ acknowledged: result.rowCount > 0 });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// DELETE post
-app.delete('/api/posts/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const result = await pgPool.query('DELETE FROM posts WHERE id = $1', [id]);
-    return res.json({ acknowledged: result.rowCount > 0 });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ===== SETTINGS ENDPOINTS =====
-
-// GET settings
-app.get('/api/settings', async (req, res) => {
-  try {
-    const { rows } = await pgPool.query('SELECT data FROM settings WHERE key = $1 LIMIT 1', ['default']);
-    return res.json(rows[0] ? rows[0].data : null);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// UPDATE settings
-app.put('/api/settings', async (req, res) => {
-  try {
-    const now = new Date();
-    const body = req.body || {};
-    const result = await pgPool.query(
-      `INSERT INTO settings (key, data, updated_at) VALUES ($1, $2, $3)
-       ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at RETURNING key`,
-      ['default', body, now.toISOString()]
-    );
-    return res.json({ acknowledged: !!result.rows[0] });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Start server
 const PORT = process.env.PORT || 3000;
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+const PUBLIC_DIR = __dirname;
+
+const server = http.createServer((req, res) => {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
+
+  // Prevent directory traversal
+  if (!filePath.startsWith(PUBLIC_DIR)) {
+    res.writeHead(404, { 'Content-Type': 'text/html' });
+    res.end('<h1>404 Not Found</h1>');
+    return;
+  }
+
+  // Handle file serving
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h1>404 Not Found</h1>');
+      return;
+    }
+
+    // Determine content type
+    const ext = path.extname(filePath);
+    const contentTypes = {
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml'
+    };
+
+    const contentType = contentTypes[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
   });
 });
+
+server.listen(PORT, () => {
+  console.log(`\n✅ Static server running on http://localhost:${PORT}`);
+  console.log(`📂 Serving files from: ${PUBLIC_DIR}\n`);
+});
+
+// No database connection needed - all data is embedded in the code!
+

@@ -116,6 +116,23 @@
                   <small class="admin__setting-help">Enter your Google Analytics Measurement ID</small>
                 </div>
 
+                <!-- Export Data Section -->
+                <div class="admin__setting-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #555;">
+                  <h3 class="admin__setting-label" style="font-size: 1.1em; margin-bottom: 15px;">Data Management</h3>
+                  
+                  <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="exportDataBtn" class="admin__save-btn" style="flex: 1;">
+                      <i class='bx bx-download'></i>
+                      Export as JSON
+                    </button>
+                    <button id="exportCodeBtn" class="admin__save-btn" style="flex: 1;">
+                      <i class='bx bx-code-block'></i>
+                      Export as Code
+                    </button>
+                  </div>
+                  <small class="admin__setting-help">Export your posts and settings to backup or update data.js</small>
+                </div>
+
                 <button id="saveSettingsBtn" class="admin__save-btn">
                   <i class='bx bx-save'></i>
                   Save Settings
@@ -211,6 +228,7 @@
   <div id="toast" class="toast"></div>
 
   <!-- Scripts -->
+  <script src="assets/js/data.js"></script>
   <script src="assets/js/database.js"></script>
   <script src="assets/js/admin.js"></script>
 </body>

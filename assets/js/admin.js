@@ -161,6 +161,12 @@ class AdminPanel {
   setupSettings() {
     const saveBtn = document.getElementById('saveSettingsBtn');
     if (saveBtn) saveBtn.addEventListener('click', () => this.saveSettings());
+
+    const exportDataBtn = document.getElementById('exportDataBtn');
+    if (exportDataBtn) exportDataBtn.addEventListener('click', () => this.exportAsJSON());
+
+    const exportCodeBtn = document.getElementById('exportCodeBtn');
+    if (exportCodeBtn) exportCodeBtn.addEventListener('click', () => this.exportAsCode());
   }
 
   openPostForm(postId = null) {
@@ -389,6 +395,134 @@ class AdminPanel {
     toast.textContent = message;
     toast.className = `toast toast--${type} show`;
     setTimeout(() => { toast.classList.remove('show'); }, 3000);
+  }
+
+  // ===== EXPORT FUNCTIONS =====
+
+  async exportAsJSON() {
+    try {
+      const posts = await DB.getPosts();
+      const settings = await DB.getSettings();
+      
+      const data = {
+        posts,
+        settings,
+        exportedAt: new Date().toISOString()
+      };
+      
+      const json = JSON.stringify(data, null, 2);
+      this.downloadFile(json, 'data-backup.json', 'application/json');
+      this.showToast('Data exported as JSON successfully!', 'success');
+    } catch (err) {
+      console.error('Export JSON error:', err);
+      this.showToast('Error exporting data. Check console for details.', 'error');
+    }
+  }
+
+  async exportAsCode() {
+    try {
+      const posts = await DB.getPosts();
+      const settings = await DB.getSettings();
+      
+      const code = `// ===== EMBEDDED DATA STORAGE =====
+// Generated: ${new Date().toISOString()}
+// Copy this into assets/js/data.js
+
+const EMBEDDED_DATA = {
+  // Admin PIN - Change to your preferred PIN
+  adminPin: '${DB.adminPin}',
+
+  // All posts stored inline
+  posts: ${JSON.stringify(posts, null, 4)},
+
+  // Global settings
+  settings: ${JSON.stringify(settings, null, 4)},
+
+  // Helper functions
+  addPost(post) {
+    const newPost = {
+      id: Date.now().toString(),
+      title: post.title || 'Untitled',
+      description: post.description || '',
+      category: post.category || 'general',
+      youtubeEmbed: post.youtubeEmbed || '',
+      thumbnail: post.thumbnail || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    this.posts.push(newPost);
+    return newPost;
+  },
+
+  updatePost(id, updates) {
+    const post = this.posts.find(p => p.id === id);
+    if (post) {
+      Object.assign(post, updates, { updatedAt: new Date().toISOString() });
+      return post;
+    }
+    return null;
+  },
+
+  deletePost(id) {
+    const index = this.posts.findIndex(p => p.id === id);
+    if (index > -1) {
+      this.posts.splice(index, 1);
+      return true;
+    }
+    return false;
+  },
+
+  getPostById(id) {
+    return this.posts.find(p => p.id === id);
+  },
+
+  getAllPosts() {
+    return this.posts;
+  },
+
+  exportAsJSON() {
+    return JSON.stringify({
+      posts: this.posts,
+      settings: this.settings,
+      exportedAt: new Date().toISOString()
+    }, null, 2);
+  },
+
+  verifyPin(pin) {
+    return pin === this.adminPin;
+  },
+
+  updateSettings(newSettings) {
+    this.settings = {
+      ...this.settings,
+      ...newSettings,
+      lastModified: new Date().toISOString()
+    };
+  }
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = EMBEDDED_DATA;
+}`;
+
+      this.downloadFile(code, 'data.js', 'text/javascript');
+      this.showToast('Data exported as code successfully! Update your assets/js/data.js file.', 'success');
+    } catch (err) {
+      console.error('Export code error:', err);
+      this.showToast('Error exporting code. Check console for details.', 'error');
+    }
+  }
+
+  downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 }
 
