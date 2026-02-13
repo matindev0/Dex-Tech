@@ -110,7 +110,13 @@ const DB = {
 
   // Make HTTP request to server
   async request(path, method = 'GET', body) {
-    const url = this.serverUrl ? `${this.serverUrl}${path}` : path;
+    // For Netlify deployment, strip /api prefix since Netlify function handles it differently
+    let normalizedPath = path;
+    if (path.startsWith('/api/')) {
+      normalizedPath = path.replace('/api', '');
+    }
+    
+    const url = this.serverUrl ? `${this.serverUrl}${normalizedPath}` : normalizedPath;
     
     const options = {
       method,
