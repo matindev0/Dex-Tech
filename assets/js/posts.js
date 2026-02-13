@@ -12,9 +12,20 @@ class PostsPage {
   }
 
   init() {
-    this.loadPosts();
     this.setupEventListeners();
     this.loadAdSense();
+    // Wait for DB to be ready
+    this.waitForDB().then(() => {
+      this.loadPosts();
+    });
+  }
+
+  async waitForDB() {
+    // Wait for DB initialization
+    return new Promise((resolve) => {
+      // DB.init() should have already run, give it a moment
+      setTimeout(() => resolve(), 100);
+    });
   }
 
   async loadPosts() {
@@ -33,6 +44,25 @@ class PostsPage {
       this.updateClearButton();
     });
     this.clearFilterBtn.addEventListener('click', () => this.clearFilter());
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('refreshPostsBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => this.refreshPosts());
+    }
+  }
+
+  async refreshPosts() {
+    const refreshBtn = document.getElementById('refreshPostsBtn');
+    if (refreshBtn) {
+      refreshBtn.classList.add('spinning');
+    }
+    await this.loadPosts();
+    setTimeout(() => {
+      if (refreshBtn) {
+        refreshBtn.classList.remove('spinning');
+      }
+    }, 500);
   }
 
   async handleSearch() {

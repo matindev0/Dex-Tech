@@ -287,3 +287,41 @@
 .posts__card:nth-child(4) { animation-delay: 0.32s; }
 .posts__card:nth-child(5) { animation-delay: 0.4s; }
 .posts__card:nth-child(6) { animation-delay: 0.48s; }
+
+/* Refresh Button */
+.posts__refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: 0.75rem;
+  background: rgba(65, 88, 208, 0.1);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  color: var(--first-color);
+  font-size: 1.2rem;
+  transition: all 0.25s ease;
+  vertical-align: middle;
+}
+
+.posts__refresh-btn:hover {
+  background: rgba(65, 88, 208, 0.2);
+  transform: rotate(180deg);
+}
+
+.posts__refresh-btn.spinning {
+  animation: spin 0.5s linear;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
