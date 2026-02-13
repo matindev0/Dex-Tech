@@ -241,10 +241,11 @@ class AdminPanel {
       return;
     }
 
-    if (!this.currentEditId && (!thumbnailFile || !thumbnailFile.files || !thumbnailFile.files.length)) {
-      this.showToast('Please upload a thumbnail image', 'error');
-      return;
-    }
+    // Thumbnail is now optional - posts can be saved without it
+    // if (!this.currentEditId && (!thumbnailFile || !thumbnailFile.files || !thumbnailFile.files.length)) {
+    //   this.showToast('Please upload a thumbnail image', 'error');
+    //   return;
+    // }
 
     let videoId = '';
     if (youtubeInput) {
@@ -260,9 +261,9 @@ class AdminPanel {
         const file = thumbnailFile.files[0];
         const imagePath = await DB.uploadImage(file);
         await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, imagePath);
-      } else if (this.currentEditId) {
-        const existingPost = await DB.getPostById(this.currentEditId);
-        await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, existingPost.thumbnail);
+      } else {
+        // No thumbnail - save with empty thumbnail
+        await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, '');
       }
     } catch (error) {
       console.error('Save post error:', error);

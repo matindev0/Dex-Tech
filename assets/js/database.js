@@ -163,7 +163,7 @@ const DB = {
   },
 
   async addPost(post) {
-    // ONLY save to server - not localStorage
+    // Try server first
     if (this.useServer) {
       try {
         const created = await this.request('/api/posts', 'POST', post);
@@ -172,16 +172,32 @@ const DB = {
           return created;
         }
       } catch (error) {
-        console.error('❌ Failed to save post to server:', error.message);
-        throw error;
+        console.warn('Server save failed, using localStorage fallback');
       }
     }
 
-    throw new Error('Server not available. Cannot save post.');
+    // Fallback to localStorage
+    const newPost = {
+      id: Date.now().toString(),
+      title: post.title || 'Untitled',
+      description: post.description || '',
+      category: post.category || 'general',
+      youtubeEmbed: post.youtubeEmbed || '',
+      thumbnail: post.thumbnail || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.state.posts.unshift(newPost);
+    this.state.settings.lastModified = newPost.createdAt;
+    this.saveToLocalStorage('posts', this.state.posts);
+    this.saveToLocalStorage('settings', this.state.settings);
+
+    return newPost;
   },
 
   async updatePost(id, post) {
-    // ONLY update on server - not localStorage
+    // Try server first
     if (this.useServer) {
       try {
         const result = await this.request(`/api/posts/${id}`, 'PUT', post);
@@ -190,12 +206,32 @@ const DB = {
           return result;
         }
       } catch (error) {
-        console.error('❌ Failed to update post on server:', error.message);
-        throw error;
+        console.warn('Server update failed, using localStorage fallback');
       }
     }
 
-    throw new Error('Server not available. Cannot update post.');
+    // Fallback to localStorage
+    const index = this.state.posts.findIndex(p => p.id === id);
+    if (index === -1) {
+      throw new Error('Post not found');
+    }
+
+    const updated = {
+      ...this.state.posts[index],
+      title: post.title || this.state.posts[index].title,
+      description: post.description || this.state.posts[index].description,
+      category: post.category || this.state.posts[index].category,
+      youtubeEmbed: post.youtubeEmbed !== undefined ? post.youtubeEmbed : this.state.posts[index].youtubeEmbed,
+      thumbnail: post.thumbnail !== undefined ? post.thumbnail : this.state.posts[index].thumbnail,
+      updatedAt: new Date().toISOString()
+    };
+
+    this.state.posts[index] = updated;
+    this.state.settings.lastModified = updated.updatedAt;
+    this.saveToLocalStorage('posts', this.state.posts);
+    this.saveToLocalStorage('settings', this.state.settings);
+
+    return updated;
   },
 
   async deletePost(id) {
