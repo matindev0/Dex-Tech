@@ -168,6 +168,20 @@ class AdminPanel {
     const exportCodeBtn = document.getElementById('exportCodeBtn');
     if (exportCodeBtn) exportCodeBtn.addEventListener('click', () => this.exportAsCode());
 
+    // New buttons for easy data.js update
+    const copyCodeBtn = document.getElementById('copyCodeBtn');
+    if (copyCodeBtn) copyCodeBtn.addEventListener('click', () => this.copyCodeToClipboard());
+
+    const downloadDataJsBtn = document.getElementById('downloadDataJsBtn');
+    if (downloadDataJsBtn) downloadDataJsBtn.addEventListener('click', () => this.downloadDataJs());
+
+    // Buttons for post-data.html export
+    const exportPostDataBtn = document.getElementById('exportPostDataBtn');
+    if (exportPostDataBtn) exportPostDataBtn.addEventListener('click', () => this.exportPostDataHtml());
+
+    const copyPostDataBtn = document.getElementById('copyPostDataBtn');
+    if (copyPostDataBtn) copyPostDataBtn.addEventListener('click', () => this.copyPostDataHtml());
+
     const resetBtn = document.getElementById('resetDataBtn');
     if (resetBtn) resetBtn.addEventListener('click', () => this.resetData());
   }
@@ -541,6 +555,40 @@ if (typeof module !== 'undefined' && module.exports) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  // ===== COPY DATA.JS CODE =====
+  async copyCodeToClipboard() {
+    try {
+      await DB.copyCodeToClipboard();
+      this.showToast('data.js code copied to clipboard! Paste it into assets/js/data.js', 'success');
+    } catch (err) {
+      console.error('Copy error:', err);
+      this.showToast('Error copying to clipboard. Try downloading instead.', 'error');
+    }
+  }
+
+  // ===== DOWNLOAD DATA.JS =====
+  downloadDataJs() {
+    DB.downloadCodeFile();
+    this.showToast('data.js downloaded! Replace the file in assets/js/', 'success');
+  }
+
+  // ===== EXPORT POST-DATA.HTML =====
+  exportPostDataHtml() {
+    DB.downloadPostDataHtml();
+    this.showToast('post-data.html downloaded! Save it to your project root', 'success');
+  }
+
+  // ===== COPY POST-DATA.HTML =====
+  async copyPostDataHtml() {
+    try {
+      await DB.copyPostDataHtml();
+      this.showToast('post-data.html code copied! Save it to your project root', 'success');
+    } catch (err) {
+      console.error('Copy error:', err);
+      this.showToast('Error copying. Try downloading instead.', 'error');
+    }
   }
 }
 

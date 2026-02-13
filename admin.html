@@ -130,7 +130,34 @@
                       Export as Code
                     </button>
                   </div>
-                  <small class="admin__setting-help">Export your posts and settings to backup or update data.js</small>
+                  
+                  <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="copyCodeBtn" class="admin__save-btn" style="flex: 1; background: #059669;">
+                      <i class='bx bx-clipboard'></i>
+                      Copy data.js Code
+                    </button>
+                    <button id="downloadDataJsBtn" class="admin__save-btn" style="flex: 1; background: #7c3aed;">
+                      <i class='bx bx-download'></i>
+                      Download data.js
+                    </button>
+                  </div>
+                  
+                  <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="exportPostDataBtn" class="admin__save-btn" style="flex: 1; background: #dc2626;">
+                      <i class='bx bx-data'></i>
+                      Export post-data.html
+                    </button>
+                    <button id="copyPostDataBtn" class="admin__save-btn" style="flex: 1; background: #ea580c;">
+                      <i class='bx bx-clipboard'></i>
+                      Copy post-data.html
+                    </button>
+                  </div>
+                  
+                  <small class="admin__setting-help">
+                    1. Click "Export post-data.html" or "Copy post-data.html"<br>
+                    2. Save the file as <code>post-data.html</code> in your project root<br>
+                    3. This file acts as your local database for posts
+                  </small>
                 </div>
 
                 <button id="resetDataBtn" class="admin__save-btn" style="background:#9f1239; margin-bottom: 12px;">
