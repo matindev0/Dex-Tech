@@ -2,6 +2,8 @@
 // Uses MongoDB Atlas for data persistence
 // No file-based storage needed!
 
+require('dotenv').config();
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -12,9 +14,16 @@ const ROOT_DIR = __dirname;
 const UPLOAD_DIR = path.join(ROOT_DIR, 'assets', 'images', 'uploads');
 
 // ===== MONGODB CONFIGURATION =====
-// Get from environment variable or set manually
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://matindev:Matin@cluster0.lcv6xlw.mongodb.net/?retryWrites=true&w=majority';
+// Get from environment variable (.env file)
+const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = process.env.DB_NAME || 'dextech';
+
+if (!MONGO_URI) {
+  console.error('ERROR: MONGO_URI environment variable is not set!');
+  console.error('Please create a .env file with your MongoDB connection string.');
+  console.error('See .env.example for instructions.');
+  process.exit(1);
+}
 
 let db = null;
 let client = null;
