@@ -10,7 +10,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = __dirname;
 const UPLOAD_DIR = path.join(ROOT_DIR, 'assets', 'images', 'uploads');
-const DB_FILE = path.join(ROOT_DIR, 'database.json');
+const DB_FILE = path.join(ROOT_DIR, 'datacenter.json');
 
 // ===== CONFIGURATION =====
 // Set MONGO_URI environment variable or it will use local database
@@ -22,6 +22,7 @@ const DB_NAME = process.env.DB_NAME || 'dextech';
 function initializeLocalDB() {
   if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify({
+      adminPin: '3003',
       posts: [],
       settings: {
         adsenseCode: '',
@@ -370,12 +371,16 @@ function isValidPostInput(post) {
 }
 
 async function handleApi(req, res, pathname) {
+  // Read adminPin from datacenter.json
+  const dbData = readLocalDB();
+  const adminPin = dbData.adminPin || '3003';
+  
   // GET /api/data
   if (req.method === 'GET' && pathname === '/api/data') {
     const posts = await getPosts();
     const settings = await getSettings();
     return sendJson(res, 200, {
-      adminPin: '3003',
+      adminPin,
       posts,
       settings: settings || { adsenseCode: '', analyticsCode: '', lastModified: new Date().toISOString() }
     });

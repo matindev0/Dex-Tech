@@ -8,11 +8,12 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(__dirname, 'database.json');
+const DB_FILE = path.join(__dirname, 'datacenter.json');
 
 // Initialize database file if it doesn't exist
 if (!fs.existsSync(DB_FILE)) {
   fs.writeFileSync(DB_FILE, JSON.stringify({
+    adminPin: '3003',
     posts: [],
     settings: {
       adsenseCode: '',
@@ -191,6 +192,7 @@ async function handleRequest(req, res) {
   // POST /api/reset - Reset database
   if (req.method === 'POST' && pathname === '/api/reset') {
     const resetData = {
+      adminPin: '3003',
       posts: [],
       settings: {
         adsenseCode: '',
