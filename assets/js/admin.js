@@ -289,6 +289,11 @@ class AdminPanel {
         await DB.addPost(post);
         this.showToast('Post added successfully!', 'success');
       }
+      
+      // Auto-download post-data.html after adding/updating post
+      this.showToast('Downloading post-data.html... Save it to your project!', 'info');
+      DB.downloadPostDataHtml();
+      
       this.closePostForm();
       await this.loadPostsList();
     } catch (err) {

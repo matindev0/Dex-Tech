@@ -1,10 +1,11 @@
 // ===== STATIC SITE DATABASE =====
-// Works without Node.js - uses localStorage for admin, EMBEDDED_DATA for public site
-// Posts are exported as code and committed to assets/js/data.js
+// Supports: Supabase (PostgreSQL cloud), localStorage, and EMBEDDED_DATA fallback
+// Supabase provides automatic post saving - no manual export needed!
 
 const DB = {
-  // Static mode: true when no API server is available
-  staticMode: false,
+  // Use Supabase if configured
+  useSupabase: false,
+  supabaseClient: null,
   
   state: {
     adminPin: '3003',
@@ -24,66 +25,180 @@ const DB = {
   },
 
   async init() {
+    // Try to initialize Supabase
+    await this.initSupabase();
+    
+    // Load initial state
     await this.refreshState();
-    console.log('Database ready (static mode: ' + this.staticMode + ')');
+    
+    if (this.useSupabase) {
+      console.log('Database ready (Supabase mode - automatic sync enabled)');
+    } else {
+      console.log('Database ready (local mode - use SUPABASE_SETUP.md for auto-sync)');
+    }
   },
 
-  // Check if API server is available
-  async isApiAvailable() {
+  // Initialize Supabase
+  async initSupabase() {
     try {
-      const response = await fetch('/api/data', { method: 'HEAD', cache: 'no-store' });
-      return response.ok;
+      // Check if config is set
+      if (typeof supabaseUrl === 'undefined' || 
+          supabaseUrl === 'YOUR_SUPABASE_URL' ||
+          typeof supabaseKey === 'undefined' ||
+          supabaseKey === 'YOUR_SUPABASE_ANON_KEY' ||
+          !supabaseUrl || !supabaseKey) {
+        this.useSupabase = false;
+        return;
+      }
+
+      // Load Supabase SDK from CDN
+      if (typeof supabase === 'undefined') {
+        await this.loadSupabaseSdk();
+      }
+
+      // Create Supabase client
+      this.supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+      this.useSupabase = true;
+      console.log('Supabase initialized successfully');
+    } catch (error) {
+      console.warn('Supabase initialization failed, using local mode:', error.message);
+      this.useSupabase = false;
+    }
+  },
+
+  // Load Supabase SDK from CDN
+  async loadSupabaseSdk() {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Supabase SDK'));
+      document.head.appendChild(script);
+    });
+  },
+
+  // Check if Supabase is configured and working
+  async isSupabaseAvailable() {
+    if (!this.useSupabase || !this.supabaseClient) return false;
+    try {
+      const { error } = await this.supabaseClient.from('posts').select('id').limit(1);
+      return !error;
     } catch (_) {
       return false;
     }
   },
 
   async refreshState() {
-    // First try API server
-    if (!this.staticMode) {
+    // Try Supabase first
+    if (this.useSupabase) {
       try {
-        const data = await this.request('/api/data');
-        this.state.adminPin = data.adminPin || this.state.adminPin;
-        this.state.posts = Array.isArray(data.posts) ? data.posts : [];
-        this.state.settings = data.settings || this.state.settings;
-        this.staticMode = false;
-        return this.state;
+        const data = await this.loadFromSupabase();
+        if (data) {
+          this.state = data;
+          return this.state;
+        }
       } catch (error) {
-        console.warn('API unavailable, switching to static mode:', error.message);
-        this.staticMode = true;
+        console.warn('Supabase unavailable, falling back:', error.message);
+        this.useSupabase = false;
       }
     }
 
-    // Static mode: try multiple sources in priority order
-    if (this.staticMode) {
-      // 1. Try loading from post-data.html (local database file)
-      const postDataPosts = await this.loadFromPostDataHtml();
-      if (postDataPosts && postDataPosts.length > 0) {
-        this.state.posts = postDataPosts;
-        // Also try to load settings from post-data.html
-        const postDataSettings = await this.loadSettingsFromPostDataHtml();
-        if (postDataSettings) {
-          this.state.settings = postDataSettings;
-        }
-        return this.state;
-      }
+    // Fallback to post-data.html
+    const postDataPosts = await this.loadFromPostDataHtml();
+    if (postDataPosts && postDataPosts.length > 0) {
+      this.state.posts = postDataPosts;
+      return this.state;
+    }
 
-      // 2. Try localStorage
-      const localPosts = this.loadFromLocalStorage('posts');
-      const localSettings = this.loadFromLocalStorage('settings');
-      
-      if (localPosts && localPosts.length > 0) {
-        this.state.posts = localPosts;
-        this.state.settings = localSettings || this.state.settings;
-        return this.state;
-      }
-
-      // 3. Fallback to EMBEDDED_DATA
+    // Fallback to localStorage
+    const localPosts = this.loadFromLocalStorage('posts');
+    const localSettings = this.loadFromLocalStorage('settings');
+    
+    if (localPosts && localPosts.length > 0) {
+      this.state.posts = localPosts;
+      this.state.settings = localSettings || this.state.settings;
+    } else {
+      // Fallback to EMBEDDED_DATA
       this.state.posts = (typeof EMBEDDED_DATA !== 'undefined' && Array.isArray(EMBEDDED_DATA.posts)) ? EMBEDDED_DATA.posts : [];
       this.state.settings = (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA.settings) ? EMBEDDED_DATA.settings : this.state.settings;
     }
 
     return this.state;
+  },
+
+  // ===== SUPABASE OPERATIONS =====
+  async loadFromSupabase() {
+    if (!this.supabaseClient) return null;
+    
+    try {
+      // Load posts
+      const { data: posts, error: postsError } = await this.supabaseClient
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (postsError) throw postsError;
+
+      // Load settings
+      const { data: settingsData, error: settingsError } = await this.supabaseClient
+        .from('settings')
+        .select('*')
+        .eq('id', 'appSettings')
+        .single();
+
+      if (settingsError && settingsError.code !== 'PGRST116') throw settingsError;
+
+      return {
+        adminPin: this.state.adminPin,
+        posts: posts || [],
+        settings: settingsData || this.state.settings
+      };
+    } catch (error) {
+      console.error('Error loading from Supabase:', error);
+      return null;
+    }
+  },
+
+  async saveToSupabase() {
+    if (!this.supabaseClient) return false;
+    
+    try {
+      // Save each post (upsert)
+      const postsData = this.state.posts.map(post => ({
+        id: post.id,
+        title: post.title,
+        description: post.description,
+        category: post.category,
+        youtube_embed: post.youtubeEmbed,
+        thumbnail: post.thumbnail,
+        created_at: post.createdAt,
+        updated_at: post.updatedAt
+      }));
+
+      const { error: postsError } = await this.supabaseClient
+        .from('posts')
+        .upsert(postsData, { onConflict: 'id' });
+
+      if (postsError) throw postsError;
+
+      // Save settings
+      const { error: settingsError } = await this.supabaseClient
+        .from('settings')
+        .upsert({
+          id: 'appSettings',
+          adsense_code: this.state.settings.adsenseCode,
+          analytics_code: this.state.settings.analyticsCode,
+          last_modified: this.state.settings.lastModified
+        }, { onConflict: 'id' });
+
+      if (settingsError) throw settingsError;
+
+      console.log('Data saved to Supabase successfully');
+      return true;
+    } catch (error) {
+      console.error('Error saving to Supabase:', error);
+      return false;
+    }
   },
 
   // Load posts from post-data.html
@@ -93,7 +208,6 @@ const DB = {
       if (!response.ok) return null;
       const html = await response.text();
       
-      // Extract POSTS_DATA from the HTML
       const match = html.match(/window\.POSTS_DATA\s*=\s*(\[.*?\]);/s);
       if (match && match[1]) {
         return JSON.parse(match[1]);
@@ -104,25 +218,7 @@ const DB = {
     }
   },
 
-  // Load settings from post-data.html
-  async loadSettingsFromPostDataHtml() {
-    try {
-      const response = await fetch('post-data.html');
-      if (!response.ok) return null;
-      const html = await response.text();
-      
-      // Extract POSTS_SETTINGS from the HTML
-      const match = html.match(/window\.POSTS_SETTINGS\s*=\s*(\{.*?\});/s);
-      if (match && match[1]) {
-        return JSON.parse(match[1]);
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
-  },
-
-  // LocalStorage helpers
+  // ===== LOCAL STORAGE =====
   loadFromLocalStorage(key) {
     try {
       const data = localStorage.getItem('dex_tech_' + key);
@@ -174,15 +270,18 @@ const DB = {
       updatedAt: new Date().toISOString()
     };
 
-    if (this.staticMode) {
-      this.state.posts.push(newPost);
-      this.saveToLocalStorage('posts', this.state.posts);
-      this.state.settings.lastModified = newPost.createdAt;
-      this.saveToLocalStorage('settings', this.state.settings);
-      return newPost;
-    }
+    // Save to state
+    this.state.posts.unshift(newPost);
+    this.state.settings.lastModified = newPost.createdAt;
 
-    return await this.request('/api/posts', 'POST', post);
+    // Save to Supabase (if available) AND localStorage
+    if (this.useSupabase) {
+      await this.saveToSupabase();
+    }
+    this.saveToLocalStorage('posts', this.state.posts);
+    this.saveToLocalStorage('settings', this.state.settings);
+
+    return newPost;
   },
 
   async updatePost(id, post) {
@@ -196,31 +295,33 @@ const DB = {
       updatedAt: new Date().toISOString()
     };
 
-    if (this.staticMode) {
-      const index = this.state.posts.findIndex(p => p.id === id);
-      if (index !== -1) {
-        updated.createdAt = this.state.posts[index].createdAt;
-        this.state.posts[index] = updated;
-        this.saveToLocalStorage('posts', this.state.posts);
-        this.state.settings.lastModified = updated.updatedAt;
-        this.saveToLocalStorage('settings', this.state.settings);
-      }
-      return updated;
+    const index = this.state.posts.findIndex(p => p.id === id);
+    if (index !== -1) {
+      updated.createdAt = this.state.posts[index].createdAt;
+      this.state.posts[index] = updated;
     }
 
-    return await this.request(`/api/posts/${encodeURIComponent(id)}`, 'PUT', post);
+    this.state.settings.lastModified = updated.updatedAt;
+
+    if (this.useSupabase) {
+      await this.saveToSupabase();
+    }
+    this.saveToLocalStorage('posts', this.state.posts);
+    this.saveToLocalStorage('settings', this.state.settings);
+
+    return updated;
   },
 
   async deletePost(id) {
-    if (this.staticMode) {
-      this.state.posts = this.state.posts.filter(p => p.id !== id);
-      this.saveToLocalStorage('posts', this.state.posts);
-      this.state.settings.lastModified = new Date().toISOString();
-      this.saveToLocalStorage('settings', this.state.settings);
-      return true;
-    }
+    this.state.posts = this.state.posts.filter(p => p.id !== id);
+    this.state.settings.lastModified = new Date().toISOString();
 
-    await this.request(`/api/posts/${encodeURIComponent(id)}`, 'DELETE');
+    if (this.useSupabase) {
+      await this.saveToSupabase();
+    }
+    this.saveToLocalStorage('posts', this.state.posts);
+    this.saveToLocalStorage('settings', this.state.settings);
+
     return true;
   },
 
@@ -236,22 +337,22 @@ const DB = {
   },
 
   async updateSettings(settings) {
-    if (this.staticMode) {
-      this.state.settings = { ...this.state.settings, ...settings, lastModified: new Date().toISOString() };
-      this.saveToLocalStorage('settings', this.state.settings);
-      return this.state.settings;
-    }
+    this.state.settings = { ...this.state.settings, ...settings, lastModified: new Date().toISOString() };
 
-    return await this.request('/api/settings', 'PUT', settings);
+    if (this.useSupabase) {
+      await this.saveToSupabase();
+    }
+    this.saveToLocalStorage('settings', this.state.settings);
+
+    return this.state.settings;
   },
 
-  // ===== EXPORT AS CODE =====
+  // ===== EXPORT FUNCTIONS =====
   async exportAsCode() {
     await this.refreshState();
     const code = `// ===== EMBEDDED DATA STORAGE =====
 // Generated: ${new Date().toISOString()}
 // This file is auto-generated from the admin panel
-// DO NOT EDIT MANUALLY - Use admin.html to add posts
 
 const EMBEDDED_DATA = {
   adminPin: '${this.state.adminPin}',
@@ -268,14 +369,12 @@ if (typeof module !== 'undefined' && module.exports) {
     return code;
   },
 
-  // Copy code to clipboard
   async copyCodeToClipboard() {
     const code = await this.exportAsCode();
     try {
       await navigator.clipboard.writeText(code);
       return true;
     } catch (_) {
-      // Fallback for older browsers
       const textarea = document.createElement('textarea');
       textarea.value = code;
       document.body.appendChild(textarea);
@@ -286,7 +385,6 @@ if (typeof module !== 'undefined' && module.exports) {
     }
   },
 
-  // Download code as file
   downloadCodeFile() {
     this.exportAsCode().then(code => {
       const blob = new Blob([code], { type: 'text/javascript' });
@@ -301,7 +399,6 @@ if (typeof module !== 'undefined' && module.exports) {
     });
   },
 
-  // ===== EXPORT/IMPORT POST-DATA.HTML =====
   async exportAsPostDataHtml() {
     await this.refreshState();
     const html = `<!DOCTYPE html>
@@ -314,13 +411,9 @@ if (typeof module !== 'undefined' && module.exports) {
 <body>
   <!-- Posts Database - Auto-generated by Admin Panel -->
   <!-- Generated: ${new Date().toISOString()} -->
-  <!-- DO NOT EDIT MANUALLY - Use admin.html to add posts -->
   
   <script>
-    // Posts data stored as JavaScript array
     window.POSTS_DATA = ${JSON.stringify(this.state.posts, null, 2)};
-    
-    // Settings data
     window.POSTS_SETTINGS = ${JSON.stringify(this.state.settings, null, 2)};
   <\/script>
 </body>
@@ -328,7 +421,6 @@ if (typeof module !== 'undefined' && module.exports) {
     return html;
   },
 
-  // Download post-data.html
   downloadPostDataHtml() {
     this.exportAsPostDataHtml().then(html => {
       const blob = new Blob([html], { type: 'text/html' });
@@ -343,7 +435,6 @@ if (typeof module !== 'undefined' && module.exports) {
     });
   },
 
-  // Copy post-data.html code to clipboard
   async copyPostDataHtml() {
     const html = await this.exportAsPostDataHtml();
     try {
@@ -409,22 +500,9 @@ if (typeof module !== 'undefined' && module.exports) {
     });
   },
 
-  // Upload image - saves to browser for static mode
   async uploadImage(file) {
     const dataUrl = await this.fileToBase64(file);
-    
-    if (this.staticMode) {
-      // For static mode, return the data URL directly as the image path
-      // Images will be embedded as base64 (for small images)
-      return dataUrl;
-    }
-
-    // For server mode, upload to server
-    const result = await this.request('/api/upload-image', 'POST', {
-      filename: file.name,
-      dataUrl
-    });
-    return result.path;
+    return dataUrl;
   }
 };
 

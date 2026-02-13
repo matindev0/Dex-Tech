@@ -1,149 +1,99 @@
-# Static Site Deployment Guide
+# Automatic Database Setup with Supabase
 
-This guide explains how to manage posts without Node.js - posts are stored as code in your project files.
+Your site now supports **Supabase** - a free, open-source database that saves posts automatically!
 
-## Two Options for Data Storage
+## What is Supabase?
 
-You have two options for storing posts:
+- **Free**: 500MB database, no credit card
+- **Automatic**: Posts save instantly when you add them
+- **No export needed**: Unlike the manual method, posts sync automatically
 
-1. **`assets/js/data.js`** - Standard approach (JavaScript file)
-2. **`post-data.html`** - HTML file that acts as a local database
+## Quick Setup (5 minutes)
 
-## Option 1: Using post-data.html (Recommended)
+### Step 1: Create Supabase Account
 
-This is your local database file that contains all posts as code.
+1. Go to [Supabase.com](https://supabase.com)
+2. Sign up with GitHub or email
+3. Click **"New Project"**
+4. Name: `dex-tech`
+5. Generate a password and save it
 
-### Adding Posts
+### Step 2: Get Your Credentials
 
-1. Open `admin.html` directly in your browser:
-   ```
-   file:///C:/Users/matin/OneDrive/Desktop/Dex-Tech/admin.html
-   ```
+1. In Supabase dashboard, click **Settings** (gear icon)
+2. Click **API**
+3. Copy:
+   - **Project URL**: `https://xxxxx.supabase.co`
+   - **anon public key**: `eyJhbGciOiJIUzI1NiIs...`
 
-2. Enter your PIN (default: `3003`)
+### Step 3: Create Database Tables
 
-3. Add posts using the admin panel
+1. In Supabase, click **SQL Editor**
+2. Paste and run:
 
-### Exporting to post-data.html
+```sql
+CREATE TABLE posts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  category TEXT NOT NULL,
+  youtube_embed TEXT,
+  thumbnail TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-1. Go to **Settings** tab
-2. Click **"Export post-data.html"** or **"Copy post-data.html"**
-3. Save the file as `post-data.html` in your project root
+CREATE TABLE settings (
+  id TEXT PRIMARY KEY DEFAULT 'appSettings',
+  adsense_code TEXT,
+  analytics_code TEXT,
+  last_modified TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-### How It Works
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
-- The `post-data.html` file acts as your local database
-- It contains `window.POSTS_DATA` with all your posts
-- The site automatically loads posts from this file
-- Commit and deploy to make posts visible to users
+CREATE POLICY "Public read posts" ON posts FOR SELECT USING (true);
+CREATE POLICY "Public read settings" ON settings FOR SELECT USING (true);
+```
 
-## Option 2: Using data.js
+### Step 4: Update Your Project
 
-### Adding Posts
+1. Open `assets/js/supabase-config.js`
+2. Replace with your credentials:
 
-1. Open `admin.html` in your browser
-2. Add posts
-3. Go to **Settings** → Click **"Copy data.js Code"**
-4. Open `assets/js/data.js` and replace content
+```javascript
+const supabaseUrl = 'https://your-project.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR...';
+```
 
-### Deployment Steps
+### Step 5: Deploy
 
 ```bash
-git add post-data.html  # or assets/js/data.js
-git commit -m "Add new posts"
+git add assets/js/supabase-config.js
+git commit -m "Add Supabase database"
 git push
 ```
 
-Netlify will automatically redeploy.
+## How to Add Posts
 
-## Quick Start
+1. Open `admin.html`
+2. Add your post
+3. **That's it!** Post is automatically saved to Supabase
+4. Users see the post instantly!
 
-### Step 1: Add Posts
+## Fallback Mode
 
-```
-1. Double-click admin.html
-2. Enter PIN: 3003
-3. Click "Add New Post"
-4. Fill in title, description, category
-5. Upload thumbnail
-6. Click "Save Post"
-```
-
-### Step 2: Export Database
-
-```
-1. Go to Settings
-2. Click "Export post-data.html"
-3. Save as post-data.html in project root
-```
-
-### Step 3: Deploy
-
-```
-1. git add post-data.html
-2. git commit -m "Add new posts"
-3. git push
-4. Netlify auto-deploys
-```
-
-## Viewing Posts
-
-- **Main site:** `https://your-site.netlify.app/`
-- **Posts page:** `https://your-site.netlify.app/post.html`
+If Supabase is not set up, the site will use localStorage as a fallback. Posts will work but won't sync across devices.
 
 ## Troubleshooting
 
-### Posts don't appear
+### Posts not saving?
 
-1. Verify `post-data.html` exists in project root
-2. Check browser console for errors
-3. Make sure file was committed and pushed
-4. Verify `window.POSTS_DATA` exists in the file
+1. Check browser console for errors
+2. Verify credentials in `supabase-config.js`
+3. Make sure SQL table was created
 
-### Images not showing
+### Need to reset data?
 
-1. Use relative paths: `assets/images/your-image.jpg`
-2. Upload images to `assets/images/`
-3. Compress images before uploading
-
-### PIN not working
-
-Default PIN is `3003`. Check `assets/js/data.js` for your custom PIN.
-
-## Backing Up
-
-Export regularly:
-
-1. Go to **Settings**
-2. Click **"Export as JSON"**
-3. Save the JSON file
-
-## Resetting Data
-
-To reset all posts:
-
-1. Go to **Settings**
-2. Click **"Reset Data To Zero"**
-3. Export empty database and commit
-
-## Image Guidelines
-
-- Thumbnails: 600x400px max
-- Use JPG for photos, PNG for graphics
-- Compress with TinyPNG or similar
-
-## File Structure After Setup
-
-```
-Dex-Tech/
-├── post-data.html          ← Your posts database
-├── admin.html              ← Admin panel
-├── index.html              ← Main site
-├── post.html               ← Posts page
-├── assets/
-│   └── js/
-│       ├── data.js         ← Fallback data
-│       ├── database.js     ← Database functions
-│       └── ...
-└── assets/images/          ← Your images
-```
+Go to Supabase Dashboard → Table Editor → Delete rows from `posts` table
