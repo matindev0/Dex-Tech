@@ -1,230 +1,184 @@
-// ===== CLIENT-SIDE DATA STORAGE =====
-// No database or backend required
-// All data stored in localStorage, synced from embedded data.js
+// ===== CODEBASE-BACKED STORAGE =====
+// Posts/settings/images are saved directly into project files via server.js API.
+// No external database integration is used.
 
 const DB = {
-  // Get admin PIN from embedded data
-  get adminPin() {
-    return typeof EMBEDDED_DATA !== 'undefined' ? EMBEDDED_DATA.adminPin : '3003';
+  API_BASE: '',
+  state: {
+    adminPin: '3003',
+    posts: [],
+    settings: {
+      adsenseCode: '',
+      analyticsCode: '',
+      lastModified: new Date().toISOString()
+    }
   },
 
-  // Initialize database from embedded data
+  get adminPin() {
+    return this.state.adminPin || (typeof EMBEDDED_DATA !== 'undefined' ? EMBEDDED_DATA.adminPin : '3003');
+  },
+
   async init() {
-    // Load initial data from EMBEDDED_DATA into localStorage if empty
-    if (!localStorage.getItem('matin_posts')) {
-      const initialPosts = typeof EMBEDDED_DATA !== 'undefined' ? EMBEDDED_DATA.posts : [];
-      localStorage.setItem('matin_posts', JSON.stringify(initialPosts));
+    this.clearLegacyLocalStorage();
+    await this.refreshState();
+    console.log('Database ready (codebase-backed file storage)');
+  },
+
+  clearLegacyLocalStorage() {
+    try {
+      localStorage.removeItem('matin_posts');
+      localStorage.removeItem('matin_settings');
+    } catch (_) {
+      // Ignore environments where localStorage is unavailable.
     }
-    if (!localStorage.getItem('matin_settings')) {
-      const initialSettings = typeof EMBEDDED_DATA !== 'undefined' ? EMBEDDED_DATA.settings : {
-        adsenseCode: '',
-        analyticsCode: '',
-        lastModified: new Date().toISOString()
-      };
-      localStorage.setItem('matin_settings', JSON.stringify(initialSettings));
+  },
+
+  async request(path, method = 'GET', body) {
+    const response = await fetch(`${this.API_BASE}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Request failed (${response.status})`;
+      try {
+        const payload = await response.json();
+        if (payload && payload.error) errorMessage = payload.error;
+      } catch (_) {
+        // no-op
+      }
+      throw new Error(errorMessage);
     }
-    console.log('✅ Database ready (localStorage - Client-side only)');
+
+    if (response.status === 204) return null;
+    return response.json();
+  },
+
+  async refreshState() {
+    try {
+      const data = await this.request('/api/data');
+      this.state.adminPin = data.adminPin || this.state.adminPin;
+      this.state.posts = Array.isArray(data.posts) ? data.posts : [];
+      this.state.settings = data.settings || this.state.settings;
+      return this.state;
+    } catch (error) {
+      console.warn('API unavailable, using embedded fallback data:', error.message);
+      this.state.adminPin = (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA.adminPin) || this.state.adminPin;
+      this.state.posts = (typeof EMBEDDED_DATA !== 'undefined' && Array.isArray(EMBEDDED_DATA.posts)) ? EMBEDDED_DATA.posts : [];
+      this.state.settings = (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA.settings) ? EMBEDDED_DATA.settings : this.state.settings;
+      return this.state;
+    }
   },
 
   // ===== POSTS OPERATIONS =====
-  
   async getPosts() {
-    try {
-      return JSON.parse(localStorage.getItem('matin_posts')) || [];
-    } catch (e) {
-      console.error('Error reading posts:', e);
-      return [];
-    }
+    await this.refreshState();
+    return [...this.state.posts];
   },
 
   async addPost(post) {
-    try {
-      const newPost = {
-        id: Date.now().toString(),
-        title: post.title,
-        description: post.description,
-        category: post.category,
-        youtubeEmbed: post.youtubeEmbed,
-        thumbnail: post.thumbnail,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      const posts = await this.getPosts();
-      posts.push(newPost);
-      localStorage.setItem('matin_posts', JSON.stringify(posts));
-      console.log('✅ Post added to localStorage');
-      return newPost;
-    } catch (error) {
-      console.error('Error adding post:', error);
-      throw error;
-    }
+    const created = await this.request('/api/posts', 'POST', post);
+    await this.refreshState();
+    return created;
   },
 
   async updatePost(id, post) {
-    try {
-      const posts = await this.getPosts();
-      const index = posts.findIndex(p => p.id === id);
-      if (index !== -1) {
-        posts[index] = {
-          ...posts[index],
-          title: post.title,
-          description: post.description,
-          category: post.category,
-          youtubeEmbed: post.youtubeEmbed,
-          thumbnail: post.thumbnail,
-          updatedAt: new Date().toISOString()
-        };
-        localStorage.setItem('matin_posts', JSON.stringify(posts));
-        console.log('✅ Post updated in localStorage');
-        return posts[index];
-      }
-      return null;
-    } catch (error) {
-      console.error('Error updating post:', error);
-      throw error;
-    }
+    const updated = await this.request(`/api/posts/${encodeURIComponent(id)}`, 'PUT', post);
+    await this.refreshState();
+    return updated;
   },
 
   async deletePost(id) {
-    try {
-      const posts = await this.getPosts();
-      const filteredPosts = posts.filter(p => p.id !== id);
-      localStorage.setItem('matin_posts', JSON.stringify(filteredPosts));
-      console.log('✅ Post deleted from localStorage');
-      return true;
-    } catch (error) {
-      console.error('Error deleting post:', error);
-      throw error;
-    }
+    await this.request(`/api/posts/${encodeURIComponent(id)}`, 'DELETE');
+    await this.refreshState();
+    return true;
   },
 
   async getPostById(id) {
-    try {
-      const posts = await this.getPosts();
-      return posts.find(p => p.id === id) || null;
-    } catch (error) {
-      console.error('Error getting post by ID:', error);
-      return null;
-    }
+    const posts = await this.getPosts();
+    return posts.find(p => p.id === id || p._id === id) || null;
   },
 
   async searchPosts(query) {
-    try {
-      const posts = await this.getPosts();
-      const lowerQuery = query.toLowerCase();
-      return posts.filter(post =>
-        (post.title && post.title.toLowerCase().includes(lowerQuery)) ||
-        (post.description && post.description.toLowerCase().includes(lowerQuery)) ||
-        (post.category && post.category.toLowerCase().includes(lowerQuery))
-      );
-    } catch (error) {
-      console.error('Error searching posts:', error);
-      return [];
-    }
+    const posts = await this.getPosts();
+    const lowerQuery = query.toLowerCase();
+    return posts.filter(post =>
+      (post.title && post.title.toLowerCase().includes(lowerQuery)) ||
+      (post.description && post.description.toLowerCase().includes(lowerQuery)) ||
+      (post.category && post.category.toLowerCase().includes(lowerQuery))
+    );
   },
 
   // ===== SETTINGS OPERATIONS =====
-  
   async getSettings() {
-    try {
-      return JSON.parse(localStorage.getItem('matin_settings')) || {};
-    } catch (e) {
-      console.error('Error reading settings:', e);
-      return {};
-    }
+    await this.refreshState();
+    return { ...this.state.settings };
   },
 
   async updateSettings(settings) {
-    try {
-      const currentSettings = await this.getSettings();
-      const updatedSettings = {
-        ...currentSettings,
-        ...settings,
-        lastModified: new Date().toISOString()
-      };
-      
-      localStorage.setItem('matin_settings', JSON.stringify(updatedSettings));
-      console.log('✅ Settings updated in localStorage');
-      return updatedSettings;
-    } catch (error) {
-      console.error('Error updating settings:', error);
-      throw error;
-    }
+    const updated = await this.request('/api/settings', 'PUT', settings);
+    await this.refreshState();
+    return updated;
+  },
+
+  // ===== IMAGE UPLOAD =====
+  async uploadImage(file) {
+    const dataUrl = await this.fileToBase64(file);
+    const result = await this.request('/api/upload-image', 'POST', {
+      filename: file.name,
+      dataUrl
+    });
+    return result.path;
+  },
+
+  // ===== RESET =====
+  async resetAll() {
+    await this.request('/api/reset', 'POST');
+    await this.refreshState();
+    return true;
   },
 
   // ===== EXPORT FUNCTIONS =====
-  
-  // Export all data as JavaScript code snippet to insert into data.js
   async exportAsCode() {
-    try {
-      const posts = await this.getPosts();
-      const settings = await this.getSettings();
-      
-      const postsCode = JSON.stringify(posts, null, 2);
-      const settingsCode = JSON.stringify(settings, null, 2);
-      
-      const code = `// ===== EMBEDDED DATA STORAGE =====
-// Generated: ${new Date().toISOString()}
-
-const EMBEDDED_DATA = {
-  adminPin: '${this.adminPin}',
-  
-  posts: ${postsCode},
-  
-  settings: ${settingsCode},
-
-  // Helper functions...
-  addPost(post) { /* ... */ },
-  updatePost(id, updates) { /* ... */ },
-  deletePost(id) { /* ... */ },
-  getPostById(id) { /* ... */ },
-  getAllPosts() { return this.posts; },
-  exportAsJSON() { /* ... */ },
-  verifyPin(pin) { return pin === this.adminPin; },
-  updateSettings(newSettings) { /* ... */ }
-};`;
-      
-      return code;
-    } catch (error) {
-      console.error('Error exporting code:', error);
-      throw error;
-    }
+    await this.refreshState();
+    const code = `// ===== EMBEDDED DATA STORAGE =====\n// Generated: ${new Date().toISOString()}\n\nconst EMBEDDED_DATA = ${JSON.stringify({
+      adminPin: this.state.adminPin,
+      posts: this.state.posts,
+      settings: this.state.settings
+    }, null, 2)};\n\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = EMBEDDED_DATA;\n}`;
+    return code;
   },
 
   // ===== YOUTUBE UTILITIES =====
   extractVideoId(url) {
     if (!url) return null;
 
-    // If it's already just a video ID
     if (/^[a-zA-Z0-9_-]{11}$/.test(url.trim())) {
       return url.trim();
     }
 
-    let input = String(url).trim();
+    const input = String(url).trim();
 
-    // If user pasted an <iframe ...> string, return the full iframe HTML exactly as provided
     const iframeMatch = input.match(/(<iframe[\s\S]*?<\/iframe>)/i);
     if (iframeMatch && iframeMatch[1]) {
       return iframeMatch[1].trim();
     }
 
-    // If it's an embed URL (contains /embed/), return the full embed URL so caller can use it verbatim
     const embedMatch = input.match(/https?:\/\/(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})(?:[?&][^\s]*)?/i);
     if (embedMatch) {
       const urlOnly = input.match(/https?:\/\/(?:www\.)?youtube\.com\/embed\/[a-zA-Z0-9_-]{11}(?:[?&][^\s]*)?/i)[0];
       return urlOnly;
     }
 
-    // Extract from youtube.com/watch?v=ID (with optional extra params)
     let videoIdMatch = input.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/i);
     if (videoIdMatch) return videoIdMatch[1];
 
-    // Extract from youtu.be/ID (with optional params)
     videoIdMatch = input.match(/(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]{11})/i);
     if (videoIdMatch) return videoIdMatch[1];
 
-    // As a last resort, if input looks like a full URL to youtube (but didn't match above), return it
     if (/https?:\/\/(?:www\.)?youtube\.com|https?:\/\/(?:www\.)?youtu\.be/i.test(input)) {
       return input;
     }
@@ -248,7 +202,6 @@ const EMBEDDED_DATA = {
   }
 };
 
-// Initialize database on page load
 document.addEventListener('DOMContentLoaded', () => {
   DB.init();
 });

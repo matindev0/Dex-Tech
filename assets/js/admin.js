@@ -167,6 +167,9 @@ class AdminPanel {
 
     const exportCodeBtn = document.getElementById('exportCodeBtn');
     if (exportCodeBtn) exportCodeBtn.addEventListener('click', () => this.exportAsCode());
+
+    const resetBtn = document.getElementById('resetDataBtn');
+    if (resetBtn) resetBtn.addEventListener('click', () => this.resetData());
   }
 
   openPostForm(postId = null) {
@@ -250,8 +253,8 @@ class AdminPanel {
     try {
       if (thumbnailFile && thumbnailFile.files && thumbnailFile.files.length > 0) {
         const file = thumbnailFile.files[0];
-        const base64 = await DB.fileToBase64(file);
-        await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, base64);
+        const imagePath = await DB.uploadImage(file);
+        await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, imagePath);
       } else if (this.currentEditId) {
         const existingPost = await DB.getPostById(this.currentEditId);
         await this.completeSavePost(titleInput, descriptionInput, categoryInput, videoId, existingPost.thumbnail);
@@ -276,7 +279,7 @@ class AdminPanel {
       await this.loadPostsList();
     } catch (err) {
       console.error('Complete save post error:', err);
-      this.showToast('Error saving post to database. Please try again.', 'error');
+      this.showToast('Error saving post to project files. Please try again.', 'error');
     }
   }
 
@@ -386,6 +389,21 @@ class AdminPanel {
     } catch (err) {
       console.error('Save settings error:', err);
       this.showToast('Error saving settings. Please try again.', 'error');
+    }
+  }
+
+  async resetData() {
+    const confirmed = window.confirm('Reset all posts and settings to zero? This writes an empty state to assets/js/data.js.');
+    if (!confirmed) return;
+
+    try {
+      await DB.resetAll();
+      await this.loadPostsList();
+      await this.loadSettings();
+      this.showToast('All data reset to zero successfully!', 'success');
+    } catch (err) {
+      console.error('Reset data error:', err);
+      this.showToast('Error resetting data. Please try again.', 'error');
     }
   }
 
