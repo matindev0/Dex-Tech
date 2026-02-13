@@ -281,15 +281,11 @@ class AdminPanel {
         this.showToast('Post added successfully!', 'success');
       }
       
-      // Auto-download post-data.html after adding/updating post
-      this.showToast('Downloading post-data.html... Save it to your project!', 'info');
-      DB.downloadPostDataHtml();
-      
       this.closePostForm();
       await this.loadPostsList();
     } catch (err) {
       console.error('Complete save post error:', err);
-      this.showToast('Error saving post to project files. Please try again.', 'error');
+      this.showToast('Error saving post. Please try again.', 'error');
     }
   }
 
