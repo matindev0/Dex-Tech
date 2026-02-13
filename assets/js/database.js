@@ -1,6 +1,6 @@
 // ===== STATIC SITE DATABASE =====
-// Supports: Supabase (PostgreSQL cloud), localStorage, and EMBEDDED_DATA fallback
-// Supabase provides automatic post saving - no manual export needed!
+// Supports: Supabase (PostgreSQL cloud) and EMBEDDED_DATA fallback
+// No cookies, localStorage, or site data usage.
 
 const DB = {
   // Use Supabase if configured
@@ -34,7 +34,7 @@ const DB = {
     if (this.useSupabase) {
       console.log('Database ready (Supabase mode - automatic sync enabled)');
     } else {
-      console.log('Database ready (local mode - use SUPABASE_SETUP.md for auto-sync)');
+      console.log('Database ready (embedded data only)');
     }
   },
 
@@ -61,7 +61,7 @@ const DB = {
       this.useSupabase = true;
       console.log('Supabase initialized successfully');
     } catch (error) {
-      console.warn('Supabase initialization failed, using local mode:', error.message);
+      console.warn('Supabase initialization failed, using embedded data:', error.message);
       this.useSupabase = false;
     }
   },
@@ -75,17 +75,6 @@ const DB = {
       script.onerror = () => reject(new Error('Failed to load Supabase SDK'));
       document.head.appendChild(script);
     });
-  },
-
-  // Check if Supabase is configured and working
-  async isSupabaseAvailable() {
-    if (!this.useSupabase || !this.supabaseClient) return false;
-    try {
-      const { error } = await this.supabaseClient.from('posts').select('id').limit(1);
-      return !error;
-    } catch (_) {
-      return false;
-    }
   },
 
   async refreshState() {
@@ -103,30 +92,50 @@ const DB = {
       }
     }
 
-    // Fallback to post-data.html
-    const postDataPosts = await this.loadFromPostDataHtml();
-    if (postDataPosts && postDataPosts.length > 0) {
-      this.state.posts = postDataPosts;
-      return this.state;
-    }
-
-    // Fallback to localStorage
-    const localPosts = this.loadFromLocalStorage('posts');
-    const localSettings = this.loadFromLocalStorage('settings');
-    
-    if (localPosts && localPosts.length > 0) {
-      this.state.posts = localPosts;
-      this.state.settings = localSettings || this.state.settings;
-    } else {
-      // Fallback to EMBEDDED_DATA
-      this.state.posts = (typeof EMBEDDED_DATA !== 'undefined' && Array.isArray(EMBEDDED_DATA.posts)) ? EMBEDDED_DATA.posts : [];
-      this.state.settings = (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA.settings) ? EMBEDDED_DATA.settings : this.state.settings;
-    }
+    // Fallback to EMBEDDED_DATA only (no local storage)
+    this.state.posts = (typeof EMBEDDED_DATA !== 'undefined' && Array.isArray(EMBEDDED_DATA.posts)) ? EMBEDDED_DATA.posts : [];
+    this.state.settings = (typeof EMBEDDED_DATA !== 'undefined' && EMBEDDED_DATA.settings) ? EMBEDDED_DATA.settings : this.state.settings;
 
     return this.state;
   },
 
   // ===== SUPABASE OPERATIONS =====
+  mapPostFromSupabase(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      category: row.category,
+      youtubeEmbed: row.youtube_embed || '',
+      thumbnail: row.thumbnail || '',
+      createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+      updatedAt: row.updated_at || row.updatedAt || new Date().toISOString()
+    };
+  },
+
+  mapPostToSupabase(post) {
+    return {
+      id: post.id,
+      title: post.title,
+      description: post.description,
+      category: post.category,
+      youtube_embed: post.youtubeEmbed || null,
+      thumbnail: post.thumbnail || null,
+      created_at: post.createdAt,
+      updated_at: post.updatedAt
+    };
+  },
+
+  mapSettingsFromSupabase(row) {
+    if (!row) return this.state.settings;
+    return {
+      adsenseCode: row.adsense_code || '',
+      analyticsCode: row.analytics_code || '',
+      lastModified: row.last_modified || new Date().toISOString()
+    };
+  },
+
   async loadFromSupabase() {
     if (!this.supabaseClient) return null;
     
@@ -150,8 +159,8 @@ const DB = {
 
       return {
         adminPin: this.state.adminPin,
-        posts: posts || [],
-        settings: settingsData || this.state.settings
+        posts: (posts || []).map(row => this.mapPostFromSupabase(row)).filter(Boolean),
+        settings: this.mapSettingsFromSupabase(settingsData)
       };
     } catch (error) {
       console.error('Error loading from Supabase:', error);
@@ -159,80 +168,57 @@ const DB = {
     }
   },
 
-  async saveToSupabase() {
+  async savePostsToSupabase(posts) {
     if (!this.supabaseClient) return false;
     
     try {
-      // Save each post (upsert)
-      const postsData = this.state.posts.map(post => ({
-        id: post.id,
-        title: post.title,
-        description: post.description,
-        category: post.category,
-        youtube_embed: post.youtubeEmbed,
-        thumbnail: post.thumbnail,
-        created_at: post.createdAt,
-        updated_at: post.updatedAt
-      }));
-
-      const { error: postsError } = await this.supabaseClient
+      const postsData = posts.map(post => this.mapPostToSupabase(post));
+      const { error } = await this.supabaseClient
         .from('posts')
         .upsert(postsData, { onConflict: 'id' });
 
-      if (postsError) throw postsError;
-
-      // Save settings
-      const { error: settingsError } = await this.supabaseClient
-        .from('settings')
-        .upsert({
-          id: 'appSettings',
-          adsense_code: this.state.settings.adsenseCode,
-          analytics_code: this.state.settings.analyticsCode,
-          last_modified: this.state.settings.lastModified
-        }, { onConflict: 'id' });
-
-      if (settingsError) throw settingsError;
-
-      console.log('Data saved to Supabase successfully');
+      if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Error saving to Supabase:', error);
+      console.error('Error saving posts to Supabase:', error);
       return false;
     }
   },
 
-  // Load posts from post-data.html
-  async loadFromPostDataHtml() {
-    try {
-      const response = await fetch('post-data.html');
-      if (!response.ok) return null;
-      const html = await response.text();
-      
-      const match = html.match(/window\.POSTS_DATA\s*=\s*(\[.*?\]);/s);
-      if (match && match[1]) {
-        return JSON.parse(match[1]);
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
-  },
+  async saveSettingsToSupabase(settings) {
+    if (!this.supabaseClient) return false;
 
-  // ===== LOCAL STORAGE =====
-  loadFromLocalStorage(key) {
     try {
-      const data = localStorage.getItem('dex_tech_' + key);
-      return data ? JSON.parse(data) : null;
-    } catch (_) {
-      return null;
-    }
-  },
+      const { error } = await this.supabaseClient
+        .from('settings')
+        .upsert({
+          id: 'appSettings',
+          adsense_code: settings.adsenseCode,
+          analytics_code: settings.analyticsCode,
+          last_modified: settings.lastModified
+        }, { onConflict: 'id' });
 
-  saveToLocalStorage(key, value) {
-    try {
-      localStorage.setItem('dex_tech_' + key, JSON.stringify(value));
+      if (error) throw error;
       return true;
-    } catch (_) {
+    } catch (error) {
+      console.error('Error saving settings to Supabase:', error);
+      return false;
+    }
+  },
+
+  async deleteFromSupabase(id) {
+    if (!this.supabaseClient) return false;
+
+    try {
+      const { error } = await this.supabaseClient
+        .from('posts')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error deleting from Supabase:', error);
       return false;
     }
   },
@@ -252,6 +238,13 @@ const DB = {
     return response.json();
   },
 
+  generateId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return Date.now().toString();
+  },
+
   // ===== POSTS OPERATIONS =====
   async getPosts() {
     await this.refreshState();
@@ -260,7 +253,7 @@ const DB = {
 
   async addPost(post) {
     const newPost = {
-      id: Date.now().toString(),
+      id: this.generateId(),
       title: post.title || 'Untitled',
       description: post.description || '',
       category: post.category || 'general',
@@ -274,12 +267,10 @@ const DB = {
     this.state.posts.unshift(newPost);
     this.state.settings.lastModified = newPost.createdAt;
 
-    // Save to Supabase (if available) AND localStorage
+    // Save to Supabase (if available)
     if (this.useSupabase) {
-      await this.saveToSupabase();
+      await this.savePostsToSupabase(this.state.posts);
     }
-    this.saveToLocalStorage('posts', this.state.posts);
-    this.saveToLocalStorage('settings', this.state.settings);
 
     return newPost;
   },
@@ -304,10 +295,8 @@ const DB = {
     this.state.settings.lastModified = updated.updatedAt;
 
     if (this.useSupabase) {
-      await this.saveToSupabase();
+      await this.savePostsToSupabase(this.state.posts);
     }
-    this.saveToLocalStorage('posts', this.state.posts);
-    this.saveToLocalStorage('settings', this.state.settings);
 
     return updated;
   },
@@ -317,10 +306,8 @@ const DB = {
     this.state.settings.lastModified = new Date().toISOString();
 
     if (this.useSupabase) {
-      await this.saveToSupabase();
+      await this.deleteFromSupabase(id);
     }
-    this.saveToLocalStorage('posts', this.state.posts);
-    this.saveToLocalStorage('settings', this.state.settings);
 
     return true;
   },
@@ -340,9 +327,8 @@ const DB = {
     this.state.settings = { ...this.state.settings, ...settings, lastModified: new Date().toISOString() };
 
     if (this.useSupabase) {
-      await this.saveToSupabase();
+      await this.saveSettingsToSupabase(this.state.settings);
     }
-    this.saveToLocalStorage('settings', this.state.settings);
 
     return this.state.settings;
   },

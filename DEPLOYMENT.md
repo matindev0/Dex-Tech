@@ -24,7 +24,7 @@ Your site now supports **Supabase** - a free, open-source database that saves po
 2. Click **API**
 3. Copy:
    - **Project URL**: `https://xxxxx.supabase.co`
-   - **anon public key**: `eyJhbGciOiJIUzI1NiIs...`
+   - **publishable key** (or **anon public key** if shown)
 
 ### Step 3: Create Database Tables
 
@@ -55,6 +55,13 @@ ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Public read posts" ON posts FOR SELECT USING (true);
 CREATE POLICY "Public read settings" ON settings FOR SELECT USING (true);
+
+CREATE POLICY "Public insert posts" ON posts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update posts" ON posts FOR UPDATE USING (true);
+CREATE POLICY "Public delete posts" ON posts FOR DELETE USING (true);
+
+CREATE POLICY "Public upsert settings" ON settings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update settings" ON settings FOR UPDATE USING (true);
 ```
 
 ### Step 4: Update Your Project
@@ -64,7 +71,9 @@ CREATE POLICY "Public read settings" ON settings FOR SELECT USING (true);
 
 ```javascript
 const supabaseUrl = 'https://your-project.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR...';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR...';
+const supabasePublishableKey = 'sb_publishable_...';
+const supabaseKey = supabaseAnonKey || supabasePublishableKey;
 ```
 
 ### Step 5: Deploy
@@ -93,7 +102,8 @@ If Supabase is not set up, the site will use localStorage as a fallback. Posts w
 1. Check browser console for errors
 2. Verify credentials in `supabase-config.js`
 3. Make sure SQL table was created
+4. Ensure RLS policies allow insert/update/delete for public access
 
 ### Need to reset data?
 
-Go to Supabase Dashboard → Table Editor → Delete rows from `posts` table
+Go to Supabase Dashboard -> Table Editor -> Delete rows from `posts` table

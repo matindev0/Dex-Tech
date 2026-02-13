@@ -12,7 +12,7 @@ Supabase is a free, open-source Firebase alternative with PostgreSQL.
 ## Step 1: Create Supabase Project
 
 1. Go to [Supabase.com](https://supabase.com)
-2. Click **"Start your project"** → **"Sign in"**
+2. Click **"Start your project"** -> **"Sign in"**
 3. Sign up with GitHub or email
 4. Click **"New Project"**
 5. Fill in:
@@ -26,7 +26,7 @@ Supabase is a free, open-source Firebase alternative with PostgreSQL.
 2. Click **"API"** in the sidebar
 3. Copy these values:
    - **Project URL**: `https://xxxxx.supabase.co`
-   - **anon public key**: `eyJhbGciOiJIUzI1NiIsInR...`
+   - **publishable key** (or **anon public key** if shown)
 
 ## Step 3: Create Database Table
 
@@ -66,16 +66,21 @@ CREATE POLICY "Allow public read access to posts" ON posts
 CREATE POLICY "Allow public read access to settings" ON settings
   FOR SELECT USING (true);
 
--- Allow authenticated insert/update (for admin)
-CREATE POLICY "Allow authenticated insert on posts" ON posts
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+-- Allow public write access for this static site (no backend)
+CREATE POLICY "Allow public insert on posts" ON posts
+  FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Allow authenticated update on posts" ON posts
-  FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow public update on posts" ON posts
+  FOR UPDATE USING (true);
 
-CREATE POLICY "Allow authenticated upsert on settings" ON settings
-  FOR INSERT ON settings
-  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow public delete on posts" ON posts
+  FOR DELETE USING (true);
+
+CREATE POLICY "Allow public upsert on settings" ON settings
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow public update on settings" ON settings
+  FOR UPDATE USING (true);
 ```
 
 4. Click **"Run"** to execute
@@ -87,7 +92,9 @@ CREATE POLICY "Allow authenticated upsert on settings" ON settings
 
 ```javascript
 const supabaseUrl = 'https://your-project.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR...';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR...';
+const supabasePublishableKey = 'sb_publishable_...';
+const supabaseKey = supabaseAnonKey || supabasePublishableKey;
 ```
 
 ## Step 5: Deploy
@@ -116,8 +123,8 @@ git push
 ### CORS errors?
 
 Add your domain in Supabase:
-- Project Settings → API → Site URL
+- Project Settings -> API -> Site URL
 
 ### Need to reset?
 
-Delete rows in Supabase Dashboard → Table Editor → posts
+Delete rows in Supabase Dashboard -> Table Editor -> posts

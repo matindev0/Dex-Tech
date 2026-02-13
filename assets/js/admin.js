@@ -18,13 +18,6 @@ class AdminPanel {
     this.setupTabNavigation();
     this.setupPostManagement();
     this.setupSettings();
-    this.checkSessionStorage();
-  }
-
-  checkSessionStorage() {
-    if (sessionStorage.getItem('adminAuthenticated') === 'true') {
-      this.authenticate();
-    }
   }
 
   setupPinAuthentication() {
@@ -36,7 +29,6 @@ class AdminPanel {
 
       try {
         if (typeof DB !== 'undefined' && DB.verifyPin && DB.verifyPin(pin)) {
-          sessionStorage.setItem('adminAuthenticated', 'true');
           this.authenticate();
         } else {
           this.pinError.textContent = 'Invalid PIN. Please try again.';
@@ -73,7 +65,6 @@ class AdminPanel {
   }
 
   logout() {
-    sessionStorage.removeItem('adminAuthenticated');
     this.isAuthenticated = false;
     if (this.adminContainer) this.adminContainer.style.display = 'none';
     if (this.pinModal) this.pinModal.style.display = 'flex';
