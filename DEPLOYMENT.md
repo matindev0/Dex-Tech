@@ -1,109 +1,93 @@
-# Automatic Database Setup with Supabase
+# MongoDB Database Setup
 
-Your site now supports **Supabase** - a free, open-source database that saves posts automatically!
+Your site now uses **MongoDB Atlas** - a free cloud database!
 
-## What is Supabase?
+## Why MongoDB?
 
-- **Free**: 500MB database, no credit card
-- **Automatic**: Posts save instantly when you add them
-- **No export needed**: Unlike the manual method, posts sync automatically
+- **Free tier**: 512MB storage, no credit card
+- **Cloud hosted**: Access from anywhere
+- **Automatic sync**: Posts save instantly
 
-## Quick Setup (5 minutes)
+## Setup Steps
 
-### Step 1: Create Supabase Account
+### Step 1: Create MongoDB Atlas Account
 
-1. Go to [Supabase.com](https://supabase.com)
-2. Sign up with GitHub or email
-3. Click **"New Project"**
-4. Name: `dex-tech`
-5. Generate a password and save it
+1. Go to [MongoDB Atlas](https://www.mongodb.com/atlas/database)
+2. Click **"Try Free"** → **"Create"**
+3. Sign up with Google or email
 
-### Step 2: Get Your Credentials
+### Step 2: Create Free Cluster
 
-1. In Supabase dashboard, click **Settings** (gear icon)
-2. Click **API**
-3. Copy:
-   - **Project URL**: `https://xxxxx.supabase.co`
-   - **publishable key** (or **anon public key** if shown)
+1. Select **"Create"** → **"Free"**
+2. Choose Google/GCP
+3. Select a region
+4. Click **"Create Cluster"**
 
-### Step 3: Create Database Tables
+### Step 3: Create Database User
 
-1. In Supabase, click **SQL Editor**
-2. Paste and run:
+1. Click **"Database Access"**
+2. Click **"Add New Database User"**
+3. Username: `dextech`
+4. Generate a password and **copy it!**
 
-```sql
-CREATE TABLE posts (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  category TEXT NOT NULL,
-  youtube_embed TEXT,
-  thumbnail TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+### Step 4: Configure Network Access
 
-CREATE TABLE settings (
-  id TEXT PRIMARY KEY DEFAULT 'appSettings',
-  adsense_code TEXT,
-  analytics_code TEXT,
-  last_modified TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+1. Click **"Network Access"**
+2. Click **"Add IP Address"**
+3. Select **"Allow Access from Anywhere"**
+4. Click **"Confirm"**
 
-ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+### Step 5: Get Connection String
 
-CREATE POLICY "Public read posts" ON posts FOR SELECT USING (true);
-CREATE POLICY "Public read settings" ON settings FOR SELECT USING (true);
+1. Click **"Clusters"** → **"Connect"**
+2. Select **"Connect your application"**
+3. Copy the connection string
 
-CREATE POLICY "Public insert posts" ON posts FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update posts" ON posts FOR UPDATE USING (true);
-CREATE POLICY "Public delete posts" ON posts FOR DELETE USING (true);
+### Step 6: Update server.js
 
-CREATE POLICY "Public upsert settings" ON settings FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update settings" ON settings FOR UPDATE USING (true);
-```
-
-### Step 4: Update Your Project
-
-1. Open `assets/js/supabase-config.js`
-2. Replace with your credentials:
+Open `server.js` and replace:
 
 ```javascript
-const supabaseUrl = 'https://your-project.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR...';
-const supabasePublishableKey = 'sb_publishable_...';
-const supabaseKey = supabaseAnonKey || supabasePublishableKey;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
 ```
 
-### Step 5: Deploy
+With your connection string:
+
+```javascript
+const MONGO_URI = 'mongodb+srv://dextech:YOUR_PASSWORD@cluster0.xxxxx.mongodb.net/dextech?retryWrites=true&w=majority';
+```
+
+### Step 7: Install Dependencies
 
 ```bash
-git add assets/js/supabase-config.js
-git commit -m "Add Supabase database"
-git push
+npm install mongodb
 ```
 
-## How to Add Posts
+### Step 8: Run the Server
 
-1. Open `admin.html`
-2. Add your post
-3. **That's it!** Post is automatically saved to Supabase
-4. Users see the post instantly!
+```bash
+node server.js
+```
 
-## Fallback Mode
+## How It Works
 
-If Supabase is not set up, the site will use localStorage as a fallback. Posts will work but won't sync across devices.
+1. Start server: `node server.js`
+2. Open `http://localhost:3000/admin.html`
+3. Add posts - they save to MongoDB automatically!
 
-## Troubleshooting
+## Environment Variables (Optional)
 
-### Posts not saving?
+Instead of editing server.js, you can use environment variables:
 
-1. Check browser console for errors
-2. Verify credentials in `supabase-config.js`
-3. Make sure SQL table was created
-4. Ensure RLS policies allow insert/update/delete for public access
+```bash
+export MONGO_URI='mongodb+srv://dextech:YOUR_PASSWORD@cluster0.xxxxx.mongodb.net/dextech'
+export DB_NAME='dextech'
+node server.js
+```
 
-### Need to reset data?
+## Features
 
-Go to Supabase Dashboard -> Table Editor -> Delete rows from `posts` table
+✅ Automatic post saving  
+✅ Free cloud storage  
+✅ Data persists forever  
+✅ Access from anywhere
